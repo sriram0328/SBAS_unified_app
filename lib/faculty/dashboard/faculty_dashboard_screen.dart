@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'faculty_dashboard_controller.dart';
 import '../setup/faculty_setup_screen.dart';
@@ -37,6 +38,155 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
   void dispose() {
     controller.dispose();
     super.dispose();
+  }
+
+  void _showProfileDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Profile Icon
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: const Color(0xFFEEF2FF),
+                  child: Icon(
+                    Icons.person,
+                    size: 40,
+                    color: const Color(0xFF4F6BED),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // Name
+                Text(
+                  controller.facultyName.isNotEmpty ? controller.facultyName : 'Faculty',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1F2937),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                
+                // ID
+                if (controller.facultyId.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      "ID: ${controller.facultyId}",
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                
+                // Department
+                if (controller.department.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      controller.department,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 24),
+                
+                // Divider
+                const Divider(height: 1),
+                const SizedBox(height: 16),
+                
+                // Logout Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(context); // Close dialog
+                      await _handleLogout();
+                    },
+                    icon: const Icon(Icons.logout),
+                    label: const Text("Logout"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEF4444),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleLogout() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        },
+      );
+
+      await FirebaseAuth.instance.signOut();
+
+      // Close loading indicator
+      if (mounted) Navigator.pop(context);
+
+      // Navigate to login screen
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/login', // Adjust this to your login route
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      // Close loading indicator
+      if (mounted) Navigator.pop(context);
+
+      // Show error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Logout failed: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -82,12 +232,15 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
                       ),
                     ],
                   ),
-                  const CircleAvatar(
-                    radius: 22,
-                    backgroundColor: Color(0xFFEEF2FF),
-                    child: Icon(
-                      Icons.person,
-                      color: Color(0xFF4F6BED),
+                  GestureDetector(
+                    onTap: _showProfileDialog,
+                    child: const CircleAvatar(
+                      radius: 22,
+                      backgroundColor: Color(0xFFEEF2FF),
+                      child: Icon(
+                        Icons.person,
+                        color: Color(0xFF4F6BED),
+                      ),
                     ),
                   ),
                 ],

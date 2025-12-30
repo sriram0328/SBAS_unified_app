@@ -9,7 +9,7 @@ import 'package:my_first_app/auth/login/login_screen.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   final Map<String, dynamic>? userData;
-  StudentDashboardScreen({super.key, this.userData});
+  const StudentDashboardScreen({super.key, this.userData});
 
   @override
   State<StudentDashboardScreen> createState() => _StudentDashboardScreenState();
@@ -114,7 +114,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               style: const TextStyle(color: AppColors.textSecondary),
             ),
             Text(
-              "${controller.rollNo}",
+              controller.rollNo,
               style: const TextStyle(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 24),

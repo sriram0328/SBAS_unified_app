@@ -14,6 +14,7 @@ class FacultyDashboardController extends ChangeNotifier {
   String dateLabel = "";
   int classesToday = 0;
   String facultyId = "";
+  String department = "";
 
   // Allow injecting facultyId (document id) from login flow
   FacultyDashboardController({this.facultyId = ""});
@@ -27,13 +28,11 @@ class FacultyDashboardController extends ChangeNotifier {
       notifyListeners();
 
       final user = _auth.currentUser;
-      // Prefer injected facultyId (from login), fallback to auth UID
-      final idToUse = facultyId.isNotEmpty ? facultyId : (user?.uid ?? '');
-      if (idToUse.isEmpty) {
-        throw Exception("Faculty ID not available");
+      if (user == null) {
+        throw Exception("User not authenticated");
       }
 
-      facultyId = idToUse;
+      facultyId = user.uid;
 
       // Get faculty data
       final userData = await _firestoreService.getUserData(facultyId, 'faculty');
@@ -43,6 +42,7 @@ class FacultyDashboardController extends ChangeNotifier {
       }
 
       facultyName = userData['name'] ?? '';
+      department = userData['department'] ?? '';
 
       // Format date
       final now = DateTime.now();

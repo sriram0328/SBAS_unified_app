@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class StudentProfileController {
   // Dummy data (replace with Firebase later)
   String name = "Sriram Ramanadham";
   String email = "sriram@gmail.com";
   String phone = "+91 98765 43210";
-  String rollNo = "22AM6146";
+  String rollNo = "22H71A6146";
   String branch = "AIML";
 
   final nameController = TextEditingController();
@@ -103,8 +104,89 @@ class StudentProfileController {
     );
   }
 
-  void logout(BuildContext context) {
-    Navigator.pop(context);
-    // later: FirebaseAuth.instance.signOut();
+  Future<void> logout(BuildContext context) async {
+    // Show confirmation dialog
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Logout"),
+          content: const Text("Are you sure you want to logout?"),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("Logout"),
+            ),
+          ],
+        );
+      },
+    );
+
+    // If user cancelled, return
+    if (shouldLogout != true) return;
+
+    try {
+      // Show loading indicator
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          },
+        );
+      }
+
+      // Sign out from Firebase
+      await FirebaseAuth.instance.signOut();
+
+      // Close loading indicator
+      if (context.mounted) {
+        Navigator.pop(context);
+      }
+
+      // Navigate to login screen and clear navigation stack
+      if (context.mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/login', // Adjust this to your login route
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      // Close loading indicator if still showing
+      if (context.mounted) {
+        Navigator.pop(context);
+      }
+
+      // Show error message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Logout failed: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void dispose() {
+    nameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
   }
 }

@@ -1,13 +1,30 @@
 import 'package:flutter/material.dart';
 import 'student_profile_controller.dart';
 
-class StudentProfileScreen extends StatelessWidget {
+class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final controller = StudentProfileController();
+  State<StudentProfileScreen> createState() => _StudentProfileScreenState();
+}
 
+class _StudentProfileScreenState extends State<StudentProfileScreen> {
+  late final StudentProfileController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = StudentProfileController();
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -75,6 +92,7 @@ class StudentProfileScreen extends StatelessWidget {
     );
   }
 }
+
 class _SectionCard extends StatelessWidget {
   final String title;
   final List<Widget> children;
