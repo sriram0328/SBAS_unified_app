@@ -1,0 +1,65 @@
+// main.dart for testing student
+
+import 'package:flutter/material.dart';
+import 'student/student_shell.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: StudentShell(),
+    );
+  }
+}
+
+// main.dart for testing faculty
+
+import 'package:flutter/material.dart';
+import 'faculty/faculty_shell.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: FacultyShell(), 
+    );
+  }
+}
+
+
+# Dev notes: Temporary Firestore rules file `firestore.rules.dev` added for local testing. DO NOT deploy these rules to production.
+
+# Auth Server (local dev)
+- Location: `auth_server/`
+- Node version: 18+ recommended
+- Steps to run:
+  1. Copy `auth_server/.env.example` to `auth_server/.env` and set `SERVICE_ACCOUNT_KEY_PATH` to the path to your Firebase service account JSON (or set GOOGLE_APPLICATION_CREDENTIALS).
+  2. Place your `serviceAccountKey.json` (from Firebase console) in `auth_server/` or point to it.
+  3. cd auth_server && npm install
+  4. npm start
+
+- The server exposes POST /api/login which accepts JSON {userId, password} and returns {token, user} on success.
+
+# Client changes
+- Updated `lib/auth/login/login_service.dart` to POST to the backend and sign in with the custom token returned.
+
+# Security Recommendation
+- Use server-side verification + custom token issuance in production. Update Firestore rules to require authenticated requests and role checks.
+
+# How to deploy rules (dev -> staging)
+- To deploy rules: `firebase deploy --only firestore:rules --project <project-id>` using the Firebase CLI and the appropriate `firestore.rules` file.
+
