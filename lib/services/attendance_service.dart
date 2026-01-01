@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class AttendanceService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -16,12 +17,12 @@ class AttendanceService {
         .where('section', isEqualTo: section)
         .get();
 
-    return query.docs.map((doc) => doc.id).toList(); // roll numbers
+    return query.docs.map((doc) => doc.id).toList();
   }
 
-  /// Create attendance record (ONE per period)
+  /// Create attendance record
   Future<void> markAttendance({
-    required String facultyId,
+    required String facultyId, // MUST be Firestore faculty doc ID
     required String subjectCode,
     required String year,
     required String branch,
@@ -31,6 +32,8 @@ class AttendanceService {
   }) async {
     final date = DateTime.now().toIso8601String().split('T').first;
     final docId = '${date}_${facultyId}_$periodNumber';
+
+    debugPrint('📝 Writing attendance → $docId');
 
     final allStudents = await _getAllStudents(
       year: year,
@@ -43,7 +46,7 @@ class AttendanceService {
 
     await _db.collection('attendance').doc(docId).set({
       'date': date,
-      'facultyId': facultyId,
+      'facultyId': facultyId, // 🔴 MUST MATCH Firestore faculty ID
       'subjectCode': subjectCode,
       'year': year,
       'branch': branch,
@@ -54,9 +57,10 @@ class AttendanceService {
       'timestamp': FieldValue.serverTimestamp(),
       'isLocked': true,
     });
+
+    debugPrint('✅ Attendance write SUCCESS');
   }
 
-  /// Faculty view
   Stream<QuerySnapshot> getAttendanceForFacultyByDate(
       String facultyId, DateTime date) {
     final dateString = date.toIso8601String().split('T').first;
@@ -68,7 +72,6 @@ class AttendanceService {
         .snapshots();
   }
 
-  /// Student view
   Stream<QuerySnapshot> getAttendanceForStudent(String rollNo) {
     return _db
         .collection('attendance')

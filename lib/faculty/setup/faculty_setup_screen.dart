@@ -51,7 +51,7 @@ class _FacultySetupView extends StatelessWidget {
                               branch: c.branch,
                               year: c.year,
                               section: c.section,
-                              periodNumber: c.periodNumber,
+                              periodNumber: c.periodNumber, facultyId: '',
                             ),
                           ),
                         );

@@ -1,9 +1,10 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'scanner_controller.dart';
+import '../../core/session.dart'; // ✅ GLOBAL SESSION STORAGE
 
 class LiveScannerScreen extends StatefulWidget {
+  final String facultyId; // Firestore faculty document ID (e.g. F1352)
   final String subjectName;
   final String branch;
   final String year;
@@ -12,6 +13,7 @@ class LiveScannerScreen extends StatefulWidget {
 
   const LiveScannerScreen({
     super.key,
+    required this.facultyId,
     required this.subjectName,
     required this.branch,
     required this.year,
@@ -45,6 +47,7 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
       body: SafeArea(
         child: Stack(
           children: [
+            /// 📷 CAMERA SCANNER
             MobileScanner(
               controller: cameraController,
               onDetect: (barcode) {
@@ -61,6 +64,7 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
               },
             ),
 
+            /// 🔝 HEADER (RESTORED)
             Positioned(
               top: 0,
               left: 0,
@@ -104,6 +108,7 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
               ),
             ),
 
+            /// 📐 SCANNER OVERLAY
             Center(
               child: Container(
                 height: 240,
@@ -115,56 +120,90 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
               ),
             ),
 
+            /// ✅ / ❌ POPUP (RESTORED)
             if (controller.showSuccessPopup)
               Positioned(
                 left: 16,
                 right: 16,
-                bottom: 150,
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    controller.lastScannedRoll,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                bottom: 140,
+                child: AnimatedOpacity(
+                  opacity: 1,
+                  duration: const Duration(milliseconds: 250),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor:
+                              controller.lastScannedRoll.contains('Present')
+                                  ? Colors.green
+                                  : Colors.red,
+                          child: Icon(
+                            controller.lastScannedRoll.contains('Present')
+                                ? Icons.check
+                                : Icons.close,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            controller.lastScannedRoll,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
 
+            /// 🚀 SUBMIT ATTENDANCE BUTTON
             Positioned(
               left: 16,
               right: 16,
               bottom: 40,
-              child: ElevatedButton(
-                onPressed: () async {
-                  try {
-                    await controller.submitAttendance(
-                      facultyId: FirebaseAuth.instance.currentUser!.uid,
-                      subjectCode: widget.subjectName,
-                      year: widget.year,
-                      branch: widget.branch,
-                      section: widget.section,
-                      periodNumber: widget.periodNumber,
-                    );
+              child: SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () async {
+  try {
+    debugPrint('facultyId received = [${Session.facultyId}]');
 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text("Attendance submitted")),
-                    );
+    await controller.submitAttendance(
+      facultyId: Session.facultyId, // ✅ SINGLE SOURCE OF TRUTH
+      subjectCode: widget.subjectName,
+      year: widget.year,
+      branch: widget.branch,
+      section: widget.section,
+      periodNumber: widget.periodNumber,
+    );
 
-                    controller.reset();
-                    Navigator.pop(context);
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.toString())),
-                    );
-                  }
-                },
-                child: Text(
-                    "Submit Attendance (${controller.scannedCount})"),
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Attendance submitted successfully"),
+      ),
+    );
+
+    controller.reset();
+    Navigator.pop(context);
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString())),
+    );
+  }
+},
+                  child: Text(
+                    "Submit Attendance (${controller.scannedCount})",
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
               ),
             ),
           ],

@@ -3,121 +3,101 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 class LoginService {
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Login with Firestore database
-  /// Uses rollNo/facultyId as both username AND password
+  /// Unified login for Student & Faculty
+  /// Username = ID
+  /// Password = ID
   Future<Map<String, dynamic>> login(String userId, String password) async {
     try {
-      // Step 1: Try to find user in students collection by rollno
-      QuerySnapshot studentQuery = await _db
-          .collection('students')
-          .where('rollno', isEqualTo: userId)
-          .limit(1)
-          .get();
-
       DocumentSnapshot? userDoc;
-      String role = 'student';
-      String docId = '';
+      String role = '';
+      final authEmail = '$userId@ex.com';
 
-      if (studentQuery.docs.isNotEmpty) {
-        // Found in students
-        userDoc = studentQuery.docs.first;
-        docId = userDoc.id;
+      /* ---------- STUDENT ---------- */
+      final studentDoc =
+          await _db.collection('students').doc(userId).get();
+
+      if (studentDoc.exists) {
         role = 'student';
-      } else {
-        // Step 2: Try faculty collection by facultyId
-        QuerySnapshot facultyQuery = await _db
-            .collection('faculty')
-            .where('facultyId', isEqualTo: userId)
-            .limit(1)
-            .get();
-
-        if (facultyQuery.docs.isNotEmpty) {
-          userDoc = facultyQuery.docs.first;
-          docId = userDoc.id;
-          role = 'faculty';
-        }
+        userDoc = studentDoc;
       }
 
-      // Step 3: If not found in either collection
+      /* ---------- FACULTY ---------- */
       if (userDoc == null) {
-        throw Exception('User not found. Please check your ID.');
-      }
+        final facultyDoc =
+            await _db.collection('faculty').doc(userId).get();
 
-      // Step 4: Get user data
-      final userData = userDoc.data() as Map<String, dynamic>;
-
-      // Step 5: Verify password (using rollno/facultyId as password)
-      if (role == 'student') {
-        final storedRollNo = userData['rollno'] as String?;
-        if (storedRollNo == null || storedRollNo != password) {
-          throw Exception('Invalid credentials.');
-        }
-      } else {
-        final storedFacultyId = userData['facultyId'] as String?;
-        if (storedFacultyId == null || storedFacultyId != password) {
-          throw Exception('Invalid credentials.');
+        if (facultyDoc.exists) {
+          role = 'faculty';
+          userDoc = facultyDoc;
         }
       }
 
-      // Step 6: Sign in to Firebase Auth anonymously
-      await _firebaseAuth.signInAnonymously();
+      if (userDoc == null) {
+        throw Exception('User not found');
+      }
 
-      // Step 7: Map your DB fields to app fields
-      final mappedData = {
-        'userId': docId,
+      /* ---------- PASSWORD CHECK ---------- */
+      if (password != userId) {
+        throw Exception('Invalid credentials');
+      }
+
+      /* ---------- AUTH LOGIN ---------- */
+      await _auth.signInWithEmailAndPassword(
+        email: authEmail,
+        password: password,
+      );
+
+      final authUid = _auth.currentUser!.uid;
+      final data = userDoc.data() as Map<String, dynamic>;
+
+      /* ---------- UID VALIDATION ---------- */
+      if (data['authUid'] != authUid) {
+        await _auth.signOut();
+        throw Exception('Auth mismatch. Contact admin.');
+      }
+
+      /* ---------- MAP DATA ---------- */
+      final result = {
+        'userId': userDoc.id,
+        'authUid': authUid,
         'role': role,
-        'name': userData['name'] ?? '',
-        'email': userData['email'] ?? '',
-        'branch': userData['branch'] ?? '',
-        'year': userData['year'] ?? '',
-        'section': userData['section'] ?? '',
-        
-        // Student specific fields
-        if (role == 'student') ...{
-          'rollNo': userData['rollno'] ?? '',
-          'phone': userData['studentPhone'] ?? '',
-          'parentPhone': userData['parentPhone'] ?? '',
-          'photoUrl': userData['photoUrl'] ?? '',
-          'barcodeImageUrl': userData['barcodeImageUrl'] ?? '',
-          'department': _getDepartmentName(userData['branch'] ?? ''),
-        },
-        
-        // Faculty specific fields
-        if (role == 'faculty') ...{
-          'facultyId': userData['facultyId'] ?? '',
-          'phone': userData['facultyPhone'] ?? '',
-          'department': userData['department'] ?? '',
-          'subjects': userData['subjects'] ?? [],
-        },
+        'name': data['name'] ?? '',
+        'email': authEmail,
       };
 
-      debugPrint('✅ Login successful: $userId ($role)');
-      
-      return mappedData;
+      if (role == 'student') {
+        result.addAll({
+          'rollNo': userDoc.id,
+          'branch': data['branch'] ?? '',
+          'year': data['year'] ?? '',
+          'section': data['section'] ?? '',
+          'phone': data['studentPhone'] ?? '',
+          'parentPhone': data['parentPhone'] ?? '',
+        });
+      }
+
+      if (role == 'faculty') {
+        result.addAll({
+          'facultyId': userDoc.id,
+          'department': data['department'] ?? '',
+          'phone': data['facultyPhone'] ?? '',
+          'subjects': data['subjects'] ?? [],
+        });
+      }
+
+      debugPrint('✅ Login success: $userId ($role)');
+      return result;
 
     } catch (e) {
-      debugPrint('LoginService Error: $e');
+      debugPrint('❌ Login failed: $e');
       rethrow;
     }
   }
 
-  /// Helper to get full department name from branch code
-  String _getDepartmentName(String branch) {
-    const departments = {
-      'AIML': 'Artificial Intelligence & Machine Learning',
-      'CSE': 'Computer Science & Engineering',
-      'ECE': 'Electronics & Communication Engineering',
-      'EEE': 'Electrical & Electronics Engineering',
-      'MECH': 'Mechanical Engineering',
-      'CIVIL': 'Civil Engineering',
-    };
-    return departments[branch] ?? branch;
-  }
-
   Future<void> logout() async {
-    await _firebaseAuth.signOut();
+    await _auth.signOut();
   }
 }

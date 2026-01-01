@@ -1,0 +1,5 @@
+faculty setup screen updated 
+live scanner screen updated
+scanner controller updated
+
+in faculty setup screen when selected class details it only scans/accepts the id card scan if the data of the students is in that class 

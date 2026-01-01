@@ -18,7 +18,6 @@ class ScannerController {
     isFlashOn = !isFlashOn;
   }
 
-  /// Scan + validate student
   Future<void> onStudentScanned({
     required String rollNo,
     required String expectedYear,
@@ -63,7 +62,7 @@ class ScannerController {
     });
   }
 
-  /// Final Firestore submit
+  /// IMPORTANT: facultyId MUST be Firestore doc ID (e.g., F1352)
   Future<void> submitAttendance({
     required String facultyId,
     required String subjectCode,
