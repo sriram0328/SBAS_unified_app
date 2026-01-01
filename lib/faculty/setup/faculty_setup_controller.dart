@@ -1,128 +1,54 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class FacultySetupController extends ChangeNotifier {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  // Selected values
+  String branch = "AIML";
+  String year = "4";
+  String section = "A";
+  String subject = "Machine Learning";
+  String period = "Period 1";
 
-  bool isLoading = true;
-  String? errorMessage;
-
-  String branch = "";
-  String year = "";
-  String section = "";
-  String subject = "";
-  String period = "";
-
-  List<String> branches = [];
-  List<String> years = ["1", "2", "3", "4"];
-  List<String> sections = ["A", "B", "C"];
-  List<String> subjects = [];
-  List<String> periods = [
+  // Static options (later replace with Firestore / timetable)
+  final branches = ["AIML", "AIDS", "CSE", "ECE"];
+  final years = ["1", "2", "3", "4"];
+  final sections = ["A", "B", "C"];
+  final subjects = ["Machine Learning", "ML LAB", "BDA", "BDA LAB"];
+  final periods = [
     "Period 1",
     "Period 2",
     "Period 3",
     "Period 4",
     "Period 5",
-    "Period 6",
-    "Period 7",
+    "Period 6"
   ];
 
-  Future<void> loadSetupData() async {
-    try {
-      isLoading = true;
-      errorMessage = null;
-      notifyListeners();
-
-      final user = _auth.currentUser;
-      if (user == null) {
-        throw Exception("User not authenticated");
-      }
-
-      // Load branches from settings
-      await _loadBranches();
-
-      // Load faculty's subjects
-      await _loadFacultySubjects(user.uid);
-
-      isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      isLoading = false;
-      errorMessage = e.toString();
-      notifyListeners();
-    }
-  }
-
-  Future<void> _loadBranches() async {
-    try {
-      final branchesDoc = await _db.collection('settings').doc('branches').get();
-      if (branchesDoc.exists) {
-        final data = branchesDoc.data();
-        branches = List<String>.from(data?['list'] ?? ['AIML', 'CSE', 'ECE', 'EEE']);
-      } else {
-        branches = ['AIML', 'CSE', 'ECE', 'EEE'];
-      }
-      
-      if (branches.isNotEmpty && branch.isEmpty) {
-        branch = branches.first;
-      }
-    } catch (e) {
-      print("Error loading branches: $e");
-      branches = ['AIML', 'CSE', 'ECE', 'EEE'];
-      branch = branches.first;
-    }
-  }
-
-  Future<void> _loadFacultySubjects(String facultyId) async {
-    try {
-      final facultyDoc = await _db.collection('faculty').doc(facultyId).get();
-      if (facultyDoc.exists) {
-        final data = facultyDoc.data();
-        final subjectsList = List<String>.from(data?['subjects'] ?? []);
-        
-        // Get subject names
-        subjects = [];
-        for (String subjectCode in subjectsList) {
-          subjects.add(subjectCode);
-        }
-        
-        if (subjects.isNotEmpty && subject.isEmpty) {
-          subject = subjects.first;
-        }
-      }
-    } catch (e) {
-      print("Error loading faculty subjects: $e");
-      subjects = [];
-    }
-  }
-
-  void updateBranch(String value) {
-    branch = value;
+  // Update methods
+  void updateBranch(String v) {
+    branch = v;
     notifyListeners();
   }
 
-  void updateYear(String value) {
-    year = value;
+  void updateYear(String v) {
+    year = v;
     notifyListeners();
   }
 
-  void updateSection(String value) {
-    section = value;
+  void updateSection(String v) {
+    section = v;
     notifyListeners();
   }
 
-  void updateSubject(String value) {
-    subject = value;
+  void updateSubject(String v) {
+    subject = v;
     notifyListeners();
   }
 
-  void updatePeriod(String value) {
-    period = value;
+  void updatePeriod(String v) {
+    period = v;
     notifyListeners();
   }
 
+  // Validation
   bool canStartScanner() {
     return branch.isNotEmpty &&
         year.isNotEmpty &&
@@ -131,26 +57,16 @@ class FacultySetupController extends ChangeNotifier {
         period.isNotEmpty;
   }
 
-  void startScanner(BuildContext context) {
-    if (!canStartScanner()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all fields")),
-      );
-      return;
-    }
+  // Extract period number
+  int get periodNumber =>
+      int.tryParse(period.replaceAll("Period ", "")) ?? 0;
 
-    final periodNumber = int.tryParse(period.replaceAll('Period ', '')) ?? 0;
-
-    Navigator.pushNamed(
-      context,
-      '/faculty/scanner',
-      arguments: {
+  // Prepare scanner arguments (single source of truth)
+  Map<String, dynamic> get scannerArgs => {
         'branch': branch,
         'year': year,
         'section': section,
         'subject': subject,
         'periodNumber': periodNumber,
-      },
-    );
-  }
+      };
 }

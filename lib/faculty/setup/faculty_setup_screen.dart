@@ -1,35 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'faculty_setup_controller.dart';
 import '../scanner/live_scanner_screen.dart';
 
-class FacultySetupScreen extends StatefulWidget {
+class FacultySetupScreen extends StatelessWidget {
   const FacultySetupScreen({super.key});
 
   @override
-  State<FacultySetupScreen> createState() => _FacultySetupScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => FacultySetupController(),
+      child: const _FacultySetupView(),
+    );
+  }
 }
 
-class _FacultySetupScreenState extends State<FacultySetupScreen> {
-  String branch = "AIML";
-  String year = "II";
-  String section = "A";
-  String subject = "Machine Learning";
-  String period = "Period 4";
-
-  final branches = ["AIML", "AIDS", "CSE", "ECE"];
-  final years = ["I", "II", "III", "IV"];
-  final sections = ["A", "B", "C"];
-  final subjects = ["Machine Learning", "ML LAB", "BDA", "BDA LAB"];
-  final periods = [
-    "Period 1",
-    "Period 2",
-    "Period 3",
-    "Period 4",
-    "Period 5",
-    "Period 6"
-  ];
+class _FacultySetupView extends StatelessWidget {
+  const _FacultySetupView();
 
   @override
   Widget build(BuildContext context) {
+    final c = context.watch<FacultySetupController>();
+
     return Scaffold(
       appBar: AppBar(
         leading: const BackButton(),
@@ -39,35 +31,33 @@ class _FacultySetupScreenState extends State<FacultySetupScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            _Dropdown("Branch", branch, branches,
-                (v) => setState(() => branch = v)),
-            _Dropdown("Year", year, years,
-                (v) => setState(() => year = v)),
-            _Dropdown("Section", section, sections,
-                (v) => setState(() => section = v)),
-            _Dropdown("Subject", subject, subjects,
-                (v) => setState(() => subject = v)),
-            _Dropdown("Period", period, periods,
-                (v) => setState(() => period = v)),
-
+            _Dropdown("Branch", c.branch, c.branches, c.updateBranch),
+            _Dropdown("Year", c.year, c.years, c.updateYear),
+            _Dropdown("Section", c.section, c.sections, c.updateSection),
+            _Dropdown("Subject", c.subject, c.subjects, c.updateSubject),
+            _Dropdown("Period", c.period, c.periods, c.updatePeriod),
             const Spacer(),
-
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          LiveScannerScreen(subjectName: subject),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,),
-                child: const Text("Start Scanner", style: TextStyle(color: Colors.white, fontSize: 16)),
+                onPressed: c.canStartScanner()
+                    ? () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => LiveScannerScreen(
+                              subjectName: c.subject,
+                              branch: c.branch,
+                              year: c.year,
+                              section: c.section,
+                              periodNumber: c.periodNumber,
+                            ),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text("Start Scanner"),
               ),
             ),
           ],

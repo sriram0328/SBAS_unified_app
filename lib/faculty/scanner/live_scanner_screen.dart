@@ -1,13 +1,22 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'scanner_controller.dart';
 
 class LiveScannerScreen extends StatefulWidget {
   final String subjectName;
+  final String branch;
+  final String year;
+  final String section;
+  final int periodNumber;
 
   const LiveScannerScreen({
     super.key,
     required this.subjectName,
+    required this.branch,
+    required this.year,
+    required this.section,
+    required this.periodNumber,
   });
 
   @override
@@ -36,18 +45,22 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // 📷 REAL CAMERA
             MobileScanner(
               controller: cameraController,
               onDetect: (barcode) {
                 final code = barcode.barcodes.first.rawValue;
                 if (code != null) {
-                  controller.onStudentScanned(code, _refresh);
+                  controller.onStudentScanned(
+                    rollNo: code,
+                    expectedYear: widget.year,
+                    expectedBranch: widget.branch,
+                    expectedSection: widget.section,
+                    refreshUI: _refresh,
+                  );
                 }
               },
             ),
 
-            // 🔝 Top Bar
             Positioned(
               top: 0,
               left: 0,
@@ -91,7 +104,6 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
               ),
             ),
 
-            // 📐 Scanner Overlay
             Center(
               child: Container(
                 height: 240,
@@ -103,39 +115,58 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
               ),
             ),
 
-            // ✅ Success Popup
             if (controller.showSuccessPopup)
               Positioned(
                 left: 16,
                 right: 16,
-                bottom: 30,
-                child: AnimatedOpacity(
-                  opacity: 1,
-                  duration: const Duration(milliseconds: 300),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        const CircleAvatar(
-                          backgroundColor: Colors.green,
-                          child: Icon(Icons.check, color: Colors.white),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          "${controller.lastScannedRoll} - Present",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
+                bottom: 150,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    controller.lastScannedRoll,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
+
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 40,
+              child: ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await controller.submitAttendance(
+                      facultyId: FirebaseAuth.instance.currentUser!.uid,
+                      subjectCode: widget.subjectName,
+                      year: widget.year,
+                      branch: widget.branch,
+                      section: widget.section,
+                      periodNumber: widget.periodNumber,
+                    );
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text("Attendance submitted")),
+                    );
+
+                    controller.reset();
+                    Navigator.pop(context);
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(e.toString())),
+                    );
+                  }
+                },
+                child: Text(
+                    "Submit Attendance (${controller.scannedCount})"),
+              ),
+            ),
           ],
         ),
       ),

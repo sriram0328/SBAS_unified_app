@@ -3,10 +3,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class AttendanceService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Marks attendance for a specific class period.
-  ///
-  /// This creates or updates an attendance record for a given date and period.
-  /// It stores which students were present.
+  /// Get all students of a class
+  Future<List<String>> _getAllStudents({
+    required String year,
+    required String branch,
+    required String section,
+  }) async {
+    final query = await _db
+        .collection('students')
+        .where('year', isEqualTo: year)
+        .where('branch', isEqualTo: branch)
+        .where('section', isEqualTo: section)
+        .get();
+
+    return query.docs.map((doc) => doc.id).toList(); // roll numbers
+  }
+
+  /// Create attendance record (ONE per period)
   Future<void> markAttendance({
     required String facultyId,
     required String subjectCode,
@@ -16,35 +29,36 @@ class AttendanceService {
     required int periodNumber,
     required List<String> presentStudentRollNos,
   }) async {
-    try {
-      // Use YYYY-MM-DD format for consistent date-based queries.
-      final date = DateTime.now().toIso8601String().split('T').first;
-      
-      // The document ID is a composite key to ensure uniqueness for each class on a given day.
-      final docId = '${date}_${facultyId}_${subjectCode}_$periodNumber';
+    final date = DateTime.now().toIso8601String().split('T').first;
+    final docId = '${date}_${facultyId}_$periodNumber';
 
-      final attendanceRef = _db.collection('attendance').doc(docId);
+    final allStudents = await _getAllStudents(
+      year: year,
+      branch: branch,
+      section: section,
+    );
 
-      await attendanceRef.set({
-        'date': date,
-        'facultyId': facultyId,
-        'subjectCode': subjectCode,
-        'year': year,
-        'branch': branch,
-        'section': section,
-        'periodNumber': periodNumber,
-        'presentStudentRollNos': presentStudentRollNos,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      print('Error marking attendance: $e');
-      // Rethrowing allows the UI layer to handle the error, e.g., show a snackbar.
-      rethrow;
-    }
+    final absentStudents =
+        allStudents.where((r) => !presentStudentRollNos.contains(r)).toList();
+
+    await _db.collection('attendance').doc(docId).set({
+      'date': date,
+      'facultyId': facultyId,
+      'subjectCode': subjectCode,
+      'year': year,
+      'branch': branch,
+      'section': section,
+      'periodNumber': periodNumber,
+      'presentStudentRollNos': presentStudentRollNos,
+      'absentStudentRollNos': absentStudents,
+      'timestamp': FieldValue.serverTimestamp(),
+      'isLocked': true,
+    });
   }
 
-  /// Retrieves attendance records for a specific faculty member on a given date.
-  Stream<QuerySnapshot> getAttendanceForFacultyByDate(String facultyId, DateTime date) {
+  /// Faculty view
+  Stream<QuerySnapshot> getAttendanceForFacultyByDate(
+      String facultyId, DateTime date) {
     final dateString = date.toIso8601String().split('T').first;
     return _db
         .collection('attendance')
@@ -53,8 +67,8 @@ class AttendanceService {
         .orderBy('periodNumber')
         .snapshots();
   }
-  
-  /// Retrieves all attendance records for a specific student.
+
+  /// Student view
   Stream<QuerySnapshot> getAttendanceForStudent(String rollNo) {
     return _db
         .collection('attendance')
