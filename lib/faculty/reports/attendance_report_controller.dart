@@ -2,17 +2,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AttendanceReportController {
   // ---------------------------
-  // Filters (ALL REQUIRED)
+  // Filters
   // ---------------------------
   String selectedDate = "";
   String subject = "";
   String section = "A";
   String year = "4";
   String branch = "AIML";
-  int? periodNumber;
+  int periodNumber = 1;
 
   // ---------------------------
-  // Dropdown data (DEPENDENT)
+  // Dropdown data
   // ---------------------------
   List<String> availableDates = [];
   List<String> availableSubjects = [];
@@ -35,15 +35,6 @@ class AttendanceReportController {
   List<AttendanceStudent> students = [];
 
   // ---------------------------
-// Computed lists (REQUIRED BY UI)
-// ---------------------------
-List<AttendanceStudent> get presentStudents =>
-    students.where((s) => s.isPresent).toList();
-
-List<AttendanceStudent> get absentStudents =>
-    students.where((s) => !s.isPresent).toList();
-
-  // ---------------------------
   // UI state
   // ---------------------------
   bool isInitializing = true;
@@ -52,9 +43,6 @@ List<AttendanceStudent> get absentStudents =>
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // 🔥 prevents race-condition overwrites
-  int _requestToken = 0;
-
   AttendanceReportController() {
     refreshAllData();
   }
@@ -62,10 +50,11 @@ List<AttendanceStudent> get absentStudents =>
   // ---------------------------
   Future<void> refreshAllData() async {
     try {
-      isInitializing = true;
       errorMessage = null;
+      isInitializing = true;
 
-      await _loadDates();
+      await _loadFilters();
+      await _reloadAttendanceData();
     } catch (_) {
       errorMessage = "Failed to load attendance data";
     } finally {
@@ -74,74 +63,39 @@ List<AttendanceStudent> get absentStudents =>
   }
 
   // ---------------------------
-  // Load available dates
-  // ---------------------------
-  Future<void> _loadDates() async {
-    final snap = await _firestore.collection('attendance').get();
+  Future<void> _loadFilters() async {
+    final snapshot = await _firestore.collection('attendance').get();
 
-    availableDates = snap.docs
-        .map((d) => d['date'] as String?)
-        .whereType<String>()
-        .toSet()
-        .toList()
-      ..sort();
+    final dateSet = <String>{};
+    final subjectSet = <String>{};
+    final periodSet = <int>{};
 
-    if (availableDates.isNotEmpty) {
-      selectedDate = availableDates.first;
-      await _loadSubjects();
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+
+      if (data['date'] != null) dateSet.add(data['date']);
+      if (data['subjectCode'] != null) subjectSet.add(data['subjectCode']);
+      if (data['periodNumber'] != null) {
+        periodSet.add(data['periodNumber']);
+      }
     }
+
+    availableDates = dateSet.toList()..sort();
+    availableSubjects = subjectSet.toList()..sort();
+    availablePeriods = periodSet.toList()..sort();
+
+    if (availableDates.isNotEmpty) selectedDate = availableDates.first;
+    if (availableSubjects.isNotEmpty) subject = availableSubjects.first;
+    if (availablePeriods.isNotEmpty) periodNumber = availablePeriods.first;
   }
 
   // ---------------------------
-  // Load subjects for selected date
-  // ---------------------------
-  Future<void> _loadSubjects() async {
-    final snap = await _firestore
-        .collection('attendance')
-        .where('date', isEqualTo: selectedDate)
-        .get();
+  List<AttendanceStudent> get presentStudents =>
+      students.where((s) => s.isPresent).toList();
 
-    availableSubjects = snap.docs
-        .map((d) => d['subjectCode'] as String?)
-        .whereType<String>()
-        .toSet()
-        .toList()
-      ..sort();
+  List<AttendanceStudent> get absentStudents =>
+      students.where((s) => !s.isPresent).toList();
 
-    if (availableSubjects.isNotEmpty) {
-      subject = availableSubjects.first;
-      await _loadPeriods();
-    }
-  }
-
-  // ---------------------------
-  // Load periods (CRITICAL FIX)
-  // ---------------------------
-  Future<void> _loadPeriods() async {
-    final snap = await _firestore
-        .collection('attendance')
-        .where('date', isEqualTo: selectedDate)
-        .where('subjectCode', isEqualTo: subject)
-        .where('branch', isEqualTo: branch)
-        .where('year', isEqualTo: year)
-        .where('section', isEqualTo: section)
-        .get();
-
-    availablePeriods = snap.docs
-        .map((d) => d['periodNumber'] as int?)
-        .whereType<int>()
-        .toSet()
-        .toList()
-      ..sort();
-
-    periodNumber =
-        availablePeriods.isNotEmpty ? availablePeriods.first : null;
-
-    await _reloadAttendanceData();
-  }
-
-  // ---------------------------
-  // Update filters safely
   // ---------------------------
   Future<void> updateFilters({
     String? date,
@@ -151,18 +105,8 @@ List<AttendanceStudent> get absentStudents =>
     String? branchValue,
     int? periodValue,
   }) async {
-    if (date != null && date != selectedDate) {
-      selectedDate = date;
-      await _loadSubjects();
-      return;
-    }
-
-    if (subjectValue != null && subjectValue != subject) {
-      subject = subjectValue;
-      await _loadPeriods();
-      return;
-    }
-
+    if (date != null) selectedDate = date;
+    if (subjectValue != null) subject = subjectValue;
     if (sectionValue != null) section = sectionValue;
     if (yearValue != null) year = yearValue;
     if (branchValue != null) branch = branchValue;
@@ -172,60 +116,66 @@ List<AttendanceStudent> get absentStudents =>
   }
 
   // ---------------------------
-  // FINAL SAFE QUERY
+  // 🔴 FIXED HERE (NO DUPLICATES)
   // ---------------------------
   Future<void> _reloadAttendanceData() async {
-    if (periodNumber == null) return;
-
-    final token = ++_requestToken;
-
     try {
       isLoading = true;
       errorMessage = null;
-      students.clear();
+      students = [];
 
       final query = await _firestore
           .collection('attendance')
           .where('date', isEqualTo: selectedDate)
           .where('subjectCode', isEqualTo: subject)
-          .where('branch', isEqualTo: branch)
-          .where('year', isEqualTo: year)
           .where('section', isEqualTo: section)
+          .where('year', isEqualTo: year)
+          .where('branch', isEqualTo: branch)
           .where('periodNumber', isEqualTo: periodNumber)
           .limit(1)
           .get();
 
-      if (token != _requestToken) return;
-
       if (query.docs.isEmpty) {
-        totalStudents = presentCount = absentCount = 0;
+        totalStudents = 0;
+        presentCount = 0;
+        absentCount = 0;
         return;
       }
 
       final data = query.docs.first.data();
 
-      final present =
+      final presentRolls =
           List<String>.from(data['presentStudentRollNos'] ?? []);
-      final absent =
+      final absentRolls =
           List<String>.from(data['absentStudentRollNos'] ?? []);
 
-      final allRolls = {...present, ...absent};
+      // ✅ DEDUPLICATION (CRITICAL FIX)
+      final uniqueRolls = <String>{
+        ...presentRolls,
+        ...absentRolls,
+      };
 
-      for (final roll in allRolls) {
+      for (final roll in uniqueRolls) {
+        final studentSnap =
+            await _firestore.collection('students').doc(roll).get();
+
+        final studentData = studentSnap.data();
+
         students.add(
           AttendanceStudent(
             rollNo: roll,
-            name: roll,
-            isPresent: present.contains(roll),
+            name: studentData?['name'] ?? roll,
+            isPresent: presentRolls.contains(roll),
           ),
         );
       }
 
       totalStudents = students.length;
-      presentCount = present.length;
-      absentCount = absent.length;
+      presentCount = presentStudents.length;
+      absentCount = absentStudents.length;
     } catch (_) {
       errorMessage = "Unable to fetch attendance";
+      students = [];
     } finally {
       isLoading = false;
     }
@@ -233,12 +183,15 @@ List<AttendanceStudent> get absentStudents =>
 
   // ---------------------------
   String generateCSV() {
-    final b = StringBuffer();
-    b.writeln("Roll No,Status");
+    final buffer = StringBuffer();
+    buffer.writeln("Roll No,Name,Status");
+
     for (final s in students) {
-      b.writeln("${s.rollNo},${s.isPresent ? "Present" : "Absent"}");
+      buffer.writeln(
+          "${s.rollNo},${s.name},${s.isPresent ? "Present" : "Absent"}");
     }
-    return b.toString();
+
+    return buffer.toString();
   }
 
   String generateTextReport() {
@@ -247,7 +200,7 @@ ATTENDANCE REPORT
 Date: $selectedDate
 Subject: $subject
 Period: $periodNumber
-Class: $branch $year-$section
+Class: $branch $year Section $section
 Total: $totalStudents
 Present: $presentCount
 Absent: $absentCount

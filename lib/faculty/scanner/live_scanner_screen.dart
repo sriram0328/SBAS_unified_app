@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'scanner_controller.dart';
-import '../../core/session.dart'; // ✅ GLOBAL SESSION STORAGE
+import '../../core/session.dart';
 
 class LiveScannerScreen extends StatefulWidget {
-  final String facultyId; // Firestore faculty document ID (e.g. F1352)
+  final String facultyId;
   final String subjectName;
+
+  // Class context
   final String branch;
-  final String year;
   final String section;
+  final int yearOfStudy;
+  final int semester;
   final int periodNumber;
 
   const LiveScannerScreen({
@@ -16,8 +19,9 @@ class LiveScannerScreen extends StatefulWidget {
     required this.facultyId,
     required this.subjectName,
     required this.branch,
-    required this.year,
     required this.section,
+    required this.yearOfStudy,
+    required this.semester,
     required this.periodNumber,
   });
 
@@ -27,8 +31,26 @@ class LiveScannerScreen extends StatefulWidget {
 
 class _LiveScannerScreenState extends State<LiveScannerScreen> {
   final ScannerController controller = ScannerController();
-  final MobileScannerController cameraController =
-      MobileScannerController();
+  late final MobileScannerController cameraController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    cameraController = MobileScannerController(
+      facing: CameraFacing.back,
+      detectionSpeed: DetectionSpeed.normal,
+      torchEnabled: false,
+      formats: const [
+        BarcodeFormat.code128,
+        BarcodeFormat.code39,
+        BarcodeFormat.itf,
+        BarcodeFormat.ean13,
+        BarcodeFormat.ean8,
+        BarcodeFormat.qrCode, // keep QR for testing
+      ],
+    );
+  }
 
   void _refresh() {
     if (mounted) setState(() {});
@@ -50,28 +72,33 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
             /// 📷 CAMERA SCANNER
             MobileScanner(
               controller: cameraController,
-              onDetect: (barcode) {
-                final code = barcode.barcodes.first.rawValue;
-                if (code != null) {
-                  controller.onStudentScanned(
-                    rollNo: code,
-                    expectedYear: widget.year,
-                    expectedBranch: widget.branch,
-                    expectedSection: widget.section,
-                    refreshUI: _refresh,
-                  );
-                }
+              onDetect: (BarcodeCapture capture) {
+                if (capture.barcodes.isEmpty) return;
+
+                final barcode = capture.barcodes.first;
+                final code = barcode.rawValue;
+
+                if (code == null || code.trim().isEmpty) return;
+
+                controller.onStudentScanned(
+                  rollNo: code.trim(),
+                  expectedBranch: widget.branch,
+                  expectedSection: widget.section,
+                  expectedYearOfStudy: widget.yearOfStudy,
+                  expectedSemester: widget.semester,
+                  refreshUI: _refresh,
+                );
               },
             ),
 
-            /// 🔝 HEADER (RESTORED)
+            /// 🔝 HEADER
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 color: Colors.black45,
                 child: Row(
                   children: [
@@ -108,63 +135,59 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
               ),
             ),
 
-            /// 📐 SCANNER OVERLAY
+            /// 🎯 SCAN FRAME (WIDE FOR 1D BARCODE)
             Center(
               child: Container(
-                height: 240,
-                width: 240,
+                height: 160,
+                width: 300,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white30),
+                  border: Border.all(color: Colors.white30, width: 2),
                 ),
               ),
             ),
 
-            /// ✅ / ❌ POPUP (RESTORED)
+            /// ✅ / ❌ RESULT POPUP
             if (controller.showSuccessPopup)
               Positioned(
                 left: 16,
                 right: 16,
                 bottom: 140,
-                child: AnimatedOpacity(
-                  opacity: 1,
-                  duration: const Duration(milliseconds: 250),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor:
-                              controller.lastScannedRoll.contains('Present')
-                                  ? Colors.green
-                                  : Colors.red,
-                          child: Icon(
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor:
                             controller.lastScannedRoll.contains('Present')
-                                ? Icons.check
-                                : Icons.close,
-                            color: Colors.white,
+                                ? Colors.green
+                                : Colors.red,
+                        child: Icon(
+                          controller.lastScannedRoll.contains('Present')
+                              ? Icons.check
+                              : Icons.close,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          controller.lastScannedRoll,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            controller.lastScannedRoll,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
 
-            /// 🚀 SUBMIT ATTENDANCE BUTTON
+            /// 🚀 SUBMIT BUTTON
             Positioned(
               left: 16,
               right: 16,
@@ -172,33 +195,22 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
               child: SizedBox(
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () async {
-  try {
-    debugPrint('facultyId received = [${Session.facultyId}]');
+                  onPressed: controller.scannedCount == 0
+                      ? null
+                      : () async {
+                          await controller.submitAttendance(
+                            facultyId: Session.facultyId,
+                            subjectCode: widget.subjectName,
+                            yearOfStudy: widget.yearOfStudy,
+                            semester: widget.semester,
+                            branch: widget.branch,
+                            section: widget.section,
+                            periodNumber: widget.periodNumber,
+                          );
 
-    await controller.submitAttendance(
-      facultyId: Session.facultyId, // ✅ SINGLE SOURCE OF TRUTH
-      subjectCode: widget.subjectName,
-      year: widget.year,
-      branch: widget.branch,
-      section: widget.section,
-      periodNumber: widget.periodNumber,
-    );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Attendance submitted successfully"),
-      ),
-    );
-
-    controller.reset();
-    Navigator.pop(context);
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.toString())),
-    );
-  }
-},
+                          if (!mounted) return;
+                          Navigator.pop(context);
+                        },
                   child: Text(
                     "Submit Attendance (${controller.scannedCount})",
                     style: const TextStyle(fontSize: 16),

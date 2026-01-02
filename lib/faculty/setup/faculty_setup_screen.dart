@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'faculty_setup_controller.dart';
+import '../setup/faculty_setup_controller.dart';
 import '../scanner/live_scanner_screen.dart';
+import '../../core/session.dart';
 
 class FacultySetupScreen extends StatelessWidget {
   const FacultySetupScreen({super.key});
@@ -33,6 +34,7 @@ class _FacultySetupView extends StatelessWidget {
           children: [
             _Dropdown("Branch", c.branch, c.branches, c.updateBranch),
             _Dropdown("Year", c.year, c.years, c.updateYear),
+            _Dropdown("Semester", c.semester, c.semesters, c.updateSemester),
             _Dropdown("Section", c.section, c.sections, c.updateSection),
             _Dropdown("Subject", c.subject, c.subjects, c.updateSubject),
             _Dropdown("Period", c.period, c.periods, c.updatePeriod),
@@ -47,11 +49,13 @@ class _FacultySetupView extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => LiveScannerScreen(
+                              facultyId: Session.facultyId,
                               subjectName: c.subject,
                               branch: c.branch,
-                              year: c.year,
                               section: c.section,
-                              periodNumber: c.periodNumber, facultyId: '',
+                              yearOfStudy: int.parse(c.year),
+                              semester: int.parse(c.semester),
+                              periodNumber: c.periodNumber,
                             ),
                           ),
                         );
@@ -95,8 +99,12 @@ class _Dropdown extends StatelessWidget {
                 value: value,
                 isExpanded: true,
                 items: items
-                    .map((e) =>
-                        DropdownMenuItem(value: e, child: Text(e)))
+                    .map(
+                      (e) => DropdownMenuItem(
+                        value: e,
+                        child: Text(e),
+                      ),
+                    )
                     .toList(),
                 onChanged: (v) => onChanged(v!),
               ),

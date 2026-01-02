@@ -317,18 +317,6 @@ class _FilterSection extends StatelessWidget {
                 },
               ),
             ),
-            Expanded(
-  child: _DropdownField(
-    label: "Period",
-    value: controller.periodNumber?.toString() ?? "",
-    items: controller.availablePeriods.map((e) => e.toString()).toList(),
-    onChanged: (v) {
-      controller.updateFilters(periodValue: int.parse(v));
-      onFilterChanged();
-    },
-  ),
-),
-
           ],
         ),
       ],

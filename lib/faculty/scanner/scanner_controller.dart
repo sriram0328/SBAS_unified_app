@@ -14,15 +14,18 @@ class ScannerController {
   final Set<String> _scannedRolls = {};
   bool _isProcessing = false;
 
+  // ---------------------------
   void toggleFlash() {
     isFlashOn = !isFlashOn;
   }
 
+  // ---------------------------
   Future<void> onStudentScanned({
     required String rollNo,
-    required String expectedYear,
     required String expectedBranch,
     required String expectedSection,
+    required int expectedYearOfStudy,
+    required int expectedSemester,
     required VoidCallback refreshUI,
   }) async {
     if (_isProcessing) return;
@@ -31,26 +34,51 @@ class ScannerController {
     _isProcessing = true;
 
     try {
-      final studentDoc =
-          await _db.collection('students').doc(rollNo).get();
+      // 1️⃣ STUDENT (static data)
+      final studentQuery = await _db
+          .collection('students')
+          .where('rollno', isEqualTo: rollNo)
+          .limit(1)
+          .get();
 
-      if (!studentDoc.exists) {
+      if (studentQuery.docs.isEmpty) {
         throw "Invalid ID card";
       }
 
-      final data = studentDoc.data()!;
+      final student = studentQuery.docs.first.data();
 
-      if (data['year'] != expectedYear ||
-          data['branch'] != expectedBranch ||
-          data['section'] != expectedSection) {
+      if (student['branch'] != expectedBranch ||
+          student['section'] != expectedSection) {
         throw "Student not from this class";
       }
 
+      // 2️⃣ ACADEMIC RECORD (dynamic data)
+      final academicQuery = await _db
+          .collection('academic_records')
+          .where('studentId', isEqualTo: rollNo)
+          .where('status', isEqualTo: 'active')
+          .limit(1)
+          .get();
+
+      if (academicQuery.docs.isEmpty) {
+        throw "Academic record inactive";
+      }
+
+      final academic = academicQuery.docs.first.data();
+
+      if (academic['yearOfStudy'] != expectedYearOfStudy ||
+          academic['semester'] != expectedSemester) {
+        throw "Wrong year / semester";
+      }
+
+      // 3️⃣ MARK PRESENT
       _scannedRolls.add(rollNo);
       lastScannedRoll = "$rollNo - Present";
     } catch (e) {
       lastScannedRoll = e.toString();
     }
+_scannedRolls.add(rollNo);
+debugPrint("✅ SCANNED: $rollNo");
 
     showSuccessPopup = true;
     refreshUI();
@@ -62,11 +90,13 @@ class ScannerController {
     });
   }
 
-  /// IMPORTANT: facultyId MUST be Firestore doc ID (e.g., F1352)
+  // ---------------------------
+  /// ✅ FINAL, CORRECT SUBMIT LOGIC
   Future<void> submitAttendance({
     required String facultyId,
     required String subjectCode,
-    required String year,
+    required int yearOfStudy,
+    required int semester,
     required String branch,
     required String section,
     required int periodNumber,
@@ -78,7 +108,8 @@ class ScannerController {
     await _attendanceService.markAttendance(
       facultyId: facultyId,
       subjectCode: subjectCode,
-      year: year,
+      year: yearOfStudy.toString(),
+      semester: semester.toString(),
       branch: branch,
       section: section,
       periodNumber: periodNumber,
@@ -86,6 +117,7 @@ class ScannerController {
     );
   }
 
+  // ---------------------------
   void reset() {
     _scannedRolls.clear();
   }
