@@ -1,3 +1,4 @@
+// attendance_report_screen.dart
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'attendance_report_controller.dart';
@@ -13,6 +14,21 @@ class AttendanceReportScreen extends StatefulWidget {
 class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   final controller = AttendanceReportController();
   String filter = "All";
+
+  @override
+  void initState() {
+    super.initState();
+    // Controller initializes itself, just trigger UI update
+    Future.delayed(Duration.zero, () {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _loadData() async {
+    setState(() {});
+    await controller.refreshAllData();
+    setState(() {});
+  }
 
   void _showExportOptions() {
     showModalBottomSheet(
@@ -74,7 +90,6 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       subject: 'Attendance_${controller.selectedDate}.csv',
     );
     
-    // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('CSV file ready to share'),
@@ -98,9 +113,13 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         title: const Text("Attendance Records"),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+          ),
+          IconButton(
             icon: const Icon(Icons.download),
             onPressed: _showExportOptions,
-          )
+          ),
         ],
       ),
       body: Padding(
@@ -109,13 +128,38 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           children: [
             _FilterSection(
               controller: controller,
-              onFilterChanged: () {
-                setState(() {
-                  // Refresh UI when filters change
-                });
+              onFilterChanged: () async {
+                setState(() {});
+                await controller.updateFilters();
+                setState(() {});
               },
             ),
             const SizedBox(height: 14),
+            
+            // Show error message if any
+            if (controller.errorMessage != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        controller.errorMessage!,
+                        style: TextStyle(color: Colors.red.shade700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            
             _ToggleBar(
               selected: filter,
               onChanged: (v) => setState(() => filter = v),
@@ -123,15 +167,71 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
             const SizedBox(height: 12),
             _SummaryRow(controller),
             const SizedBox(height: 12),
+            
+            // Show initializing, loading, or content
             Expanded(
-              child: ListView.builder(
-                itemCount: students.length,
-                itemBuilder: (_, i) =>
-                    _StudentTile(student: students[i]),
-              ),
+              child: controller.isInitializing
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('Loading attendance records...'),
+                        ],
+                      ),
+                    )
+                  : controller.isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(),
+                        )
+                      : students.isEmpty
+                          ? _EmptyState()
+                          : ListView.builder(
+                              itemCount: students.length,
+                              itemBuilder: (_, i) =>
+                                  _StudentTile(student: students[i]),
+                            ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/* ---------------- EMPTY STATE ---------------- */
+
+class _EmptyState extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.calendar_today_outlined,
+            size: 64,
+            color: Colors.grey.shade400,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No attendance records found',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try adjusting the filters above',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade500,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -152,7 +252,6 @@ class _FilterSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Date + Subject (single row)
         Row(
           children: [
             Expanded(
@@ -180,10 +279,7 @@ class _FilterSection extends StatelessWidget {
             ),
           ],
         ),
-
         const SizedBox(height: 12),
-
-        // Year + Branch + Section
         Row(
           children: [
             Expanded(
@@ -221,6 +317,18 @@ class _FilterSection extends StatelessWidget {
                 },
               ),
             ),
+            Expanded(
+  child: _DropdownField(
+    label: "Period",
+    value: controller.periodNumber?.toString() ?? "",
+    items: controller.availablePeriods.map((e) => e.toString()).toList(),
+    onChanged: (v) {
+      controller.updateFilters(periodValue: int.parse(v));
+      onFilterChanged();
+    },
+  ),
+),
+
           ],
         ),
       ],

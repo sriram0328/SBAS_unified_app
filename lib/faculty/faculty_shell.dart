@@ -21,9 +21,9 @@ class _FacultyShellState extends State<FacultyShell> {
   void initState() {
     super.initState();
     _screens = [
-      FacultyDashboardScreen(userData: widget.userData),
+      const FacultyDashboardScreen(),
       TimetableScreen(),
-      AttendanceReportScreen(),
+      const AttendanceReportScreen(),
     ];
   }
 

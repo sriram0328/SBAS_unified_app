@@ -1,54 +1,53 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/firestore_service.dart';
 import 'package:intl/intl.dart';
 
 class FacultyDashboardController extends ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  /// 🔑 REAL faculty document ID (e.g. FAC123)
+  final String facultyId;
+
+  FacultyDashboardController({required this.facultyId});
 
   bool isLoading = true;
   String? errorMessage;
 
   String facultyName = "";
+  String department = "";
   String dateLabel = "";
   int classesToday = 0;
-  String facultyId = "";
-  String department = "";
-
-  // Allow injecting facultyId (document id) from login flow
-  FacultyDashboardController({this.facultyId = ""});
 
   List<TodayClass> todayClasses = [];
 
+  /// ----------------------------
+  /// LOAD DASHBOARD
+  /// ----------------------------
   Future<void> loadDashboard() async {
     try {
       isLoading = true;
       errorMessage = null;
       notifyListeners();
 
-      final user = _auth.currentUser;
-      if (user == null) {
-        throw Exception("User not authenticated");
+      if (facultyId.isEmpty) {
+        throw Exception("Faculty ID missing");
       }
 
-      facultyId = user.uid;
+      /// 🔹 Faculty profile
+      final userData =
+          await _firestoreService.getUserData(facultyId, 'faculty');
 
-      // Get faculty data
-      final userData = await _firestoreService.getUserData(facultyId, 'faculty');
-      
       if (userData == null) {
-        throw Exception("Faculty data not found");
+        throw Exception("Faculty data not found for ID: $facultyId");
       }
 
       facultyName = userData['name'] ?? '';
       department = userData['department'] ?? '';
 
-      // Format date
-      final now = DateTime.now();
-      dateLabel = DateFormat('EEEE, d MMM').format(now);
+      /// 🔹 Date label
+      dateLabel = DateFormat('EEEE, d MMM').format(DateTime.now());
 
-      // Get today's timetable
+      /// 🔹 Timetable
       await _loadTodayClasses();
 
       isLoading = false;
@@ -60,64 +59,57 @@ class FacultyDashboardController extends ChangeNotifier {
     }
   }
 
+  /// ----------------------------
+  /// LOAD TODAY CLASSES
+  /// ----------------------------
   Future<void> _loadTodayClasses() async {
     try {
-      final now = DateTime.now();
-      final dayName = DateFormat('EEEE').format(now);
+      final today = DateFormat('EEEE').format(DateTime.now());
 
-      // Get faculty timetable
-      final timetableDoc = await _firestoreService
+      final doc = await _firestoreService
           .getDocument('faculty_timetables', facultyId);
 
-      if (!timetableDoc.exists) {
-        classesToday = 0;
+      if (!doc.exists) {
         todayClasses = [];
+        classesToday = 0;
         return;
       }
 
-      final data = timetableDoc.data() as Map<String, dynamic>?;
-      if (data == null) {
-        classesToday = 0;
+      final data = doc.data() as Map<String, dynamic>?;
+      final timetable = data?['timetable'] as Map<String, dynamic>?;
+
+      final schedule = timetable?[today] as List<dynamic>?;
+
+      if (schedule == null || schedule.isEmpty) {
         todayClasses = [];
+        classesToday = 0;
         return;
       }
 
-      final timetable = data['timetable'] as Map<String, dynamic>?;
-      if (timetable == null) {
-        classesToday = 0;
-        todayClasses = [];
-        return;
-      }
-
-      final todaySchedule = timetable[dayName] as List<dynamic>?;
-      if (todaySchedule == null) {
-        classesToday = 0;
-        todayClasses = [];
-        return;
-      }
-
-      todayClasses = todaySchedule.map((item) {
-        final classData = item as Map<String, dynamic>;
+      todayClasses = schedule.map((item) {
+        final m = item as Map<String, dynamic>;
         return TodayClass(
-          subjectName: classData['subjectName'] ?? '',
-          subjectCode: classData['subjectCode'] ?? '',
-          periodNumber: classData['periodNumber'] ?? 0,
-          startTime: classData['startTime'] ?? '',
-          endTime: classData['endTime'] ?? '',
-          branch: classData['branch'] ?? '',
-          year: classData['year'] ?? '',
-          section: classData['section'] ?? '',
+          subjectName: m['subjectName'] ?? '',
+          subjectCode: m['subjectCode'] ?? '',
+          periodNumber: m['periodNumber'] ?? 0,
+          startTime: m['startTime'] ?? '',
+          endTime: m['endTime'] ?? '',
+          branch: m['branch'] ?? '',
+          year: m['year'] ?? '',
+          section: m['section'] ?? '',
         );
       }).toList();
 
       classesToday = todayClasses.length;
     } catch (e) {
-      print("Error loading today's classes: $e");
-      classesToday = 0;
       todayClasses = [];
+      classesToday = 0;
     }
   }
 
+  /// ----------------------------
+  /// NAVIGATION
+  /// ----------------------------
   void startAttendance(BuildContext context) {
     Navigator.pushNamed(context, '/faculty/setup');
   }
@@ -131,6 +123,9 @@ class FacultyDashboardController extends ChangeNotifier {
   }
 }
 
+/// ----------------------------
+/// MODEL
+/// ----------------------------
 class TodayClass {
   final String subjectName;
   final String subjectCode;
