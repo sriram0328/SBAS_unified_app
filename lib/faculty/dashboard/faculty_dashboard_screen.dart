@@ -196,12 +196,13 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 🔝 Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 🔝 Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -372,6 +373,7 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 }

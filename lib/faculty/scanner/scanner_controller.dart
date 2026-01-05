@@ -14,12 +14,14 @@ class ScannerController {
   final Set<String> _scannedRolls = {};
   bool _isProcessing = false;
 
-  // ---------------------------
   void toggleFlash() {
     isFlashOn = !isFlashOn;
   }
 
-  // ---------------------------
+  void hidePopup() {
+    showSuccessPopup = false;
+  }
+
   Future<void> onStudentScanned({
     required String rollNo,
     required String expectedBranch,
@@ -34,7 +36,7 @@ class ScannerController {
     _isProcessing = true;
 
     try {
-      // 1️⃣ STUDENT (static data)
+      // 1️⃣ Validate student
       final studentQuery = await _db
           .collection('students')
           .where('rollno', isEqualTo: rollNo)
@@ -52,7 +54,7 @@ class ScannerController {
         throw "Student not from this class";
       }
 
-      // 2️⃣ ACADEMIC RECORD (dynamic data)
+      // 2️⃣ Validate academic record
       final academicQuery = await _db
           .collection('academic_records')
           .where('studentId', isEqualTo: rollNo)
@@ -71,14 +73,14 @@ class ScannerController {
         throw "Wrong year / semester";
       }
 
-      // 3️⃣ MARK PRESENT
+      // 3️⃣ SUCCESS
       _scannedRolls.add(rollNo);
       lastScannedRoll = "$rollNo - Present";
+      debugPrint("✅ SCANNED: $rollNo, total=${_scannedRolls.length}");
     } catch (e) {
       lastScannedRoll = e.toString();
+      debugPrint('❌ Scan error for $rollNo: $e');
     }
-_scannedRolls.add(rollNo);
-debugPrint("✅ SCANNED: $rollNo");
 
     showSuccessPopup = true;
     refreshUI();
@@ -90,8 +92,6 @@ debugPrint("✅ SCANNED: $rollNo");
     });
   }
 
-  // ---------------------------
-  /// ✅ FINAL, CORRECT SUBMIT LOGIC
   Future<void> submitAttendance({
     required String facultyId,
     required String subjectCode,
@@ -105,6 +105,10 @@ debugPrint("✅ SCANNED: $rollNo");
       throw "No students scanned";
     }
 
+    debugPrint(
+        'submitAttendance: faculty=$facultyId, subject=$subjectCode, year=$yearOfStudy, sem=$semester, '
+        'branch=$branch, section=$section, period=$periodNumber, present=${_scannedRolls.length}');
+
     await _attendanceService.markAttendance(
       facultyId: facultyId,
       subjectCode: subjectCode,
@@ -117,9 +121,11 @@ debugPrint("✅ SCANNED: $rollNo");
     );
   }
 
-  // ---------------------------
   void reset() {
     _scannedRolls.clear();
+    showSuccessPopup = false;
+    lastScannedRoll = "";
+    _isProcessing = false;
   }
 
   int get scannedCount => _scannedRolls.length;

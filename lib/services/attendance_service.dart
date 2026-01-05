@@ -1,33 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 
 class AttendanceService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Get all students of a class
-  Future<List<String>> _getAllStudents({
-    required String year,
-    required String semester, // ✅ ADDED
-    required String branch,
-    required String section,
-  }) async {
-    final query = await _db
-        .collection('students')
-        .where('year', isEqualTo: year)
-        .where('semester', isEqualTo: semester) // ✅ ENFORCED
-        .where('branch', isEqualTo: branch)
-        .where('section', isEqualTo: section)
-        .get();
-
-    return query.docs.map((doc) => doc.id).toList();
+  Stream<QuerySnapshot> getAttendanceForStudent(String rollNo) {
+    return _db
+        .collection('attendance')
+        .where('presentStudentRollNos', arrayContains: rollNo)
+        .snapshots();
   }
 
-  /// Create attendance record
   Future<void> markAttendance({
-    required String facultyId, // MUST be Firestore faculty doc ID
+    required String facultyId,
     required String subjectCode,
     required String year,
-    required String semester, // ✅ ADDED
+    required String semester,
     required String branch,
     required String section,
     required int periodNumber,
@@ -35,65 +22,96 @@ class AttendanceService {
   }) async {
     final date = DateTime.now().toIso8601String().split('T').first;
 
-    // Deterministic document ID (prevents duplicates)
-    final docId = '${date}_${facultyId}_$year$semester$branch$section$periodNumber';
+    final docId =
+        '${date}_${facultyId}_${year}_${semester}_${branch}_${section}_$periodNumber';
 
-    debugPrint('📝 Writing attendance → $docId');
+    print("📝 Creating attendance document: $docId");
+    print(
+        "📋 Parameters: year=$year, semester=$semester, branch=$branch, section=$section");
 
-    final allStudents = await _getAllStudents(
-      year: year,
-      semester: semester,
-      branch: branch,
-      section: section,
-    );
+    // Step 1: Find active academic records for this year/semester/branch/section
+    final academicRecordsSnap = await _db
+        .collection('academic_records')
+        .where('yearOfStudy', isEqualTo: int.parse(year))
+        .where('semester', isEqualTo: int.parse(semester))
+        .where('status', isEqualTo: 'active')
+        .get();
 
-    final absentStudents =
-        allStudents.where((r) => !presentStudentRollNos.contains(r)).toList();
+    print(
+        "📚 Found ${academicRecordsSnap.docs.length} active academic records for Year $year, Semester $semester");
+
+    if (academicRecordsSnap.docs.isEmpty) {
+      print("⚠️ No active students found for Year $year, Semester $semester");
+      await _db.collection('attendance').doc(docId).set({
+        'date': date,
+        'facultyId': facultyId,
+        'subjectCode': subjectCode,
+        'year': year,
+        'semester': semester,
+        'branch': branch,
+        'section': section,
+        'periodNumber': periodNumber,
+        'presentStudentRollNos': presentStudentRollNos,
+        'absentStudentRollNos': [],
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
+    // Extract student IDs from academic records
+    final studentIdsInYearSem = academicRecordsSnap.docs
+        .map((doc) => doc.data()['studentId'] as String)
+        .toSet();
+
+    print(
+        "👥 Student IDs in Year $year, Sem $semester: ${studentIdsInYearSem.length} students");
+
+    // Step 2: Fetch actual student documents for these IDs to verify branch/section
+    final allValidRollNos = <String>[];
+
+    for (int i = 0; i < studentIdsInYearSem.length; i += 30) {
+      final batch = studentIdsInYearSem.skip(i).take(30).toList();
+
+      final studentsSnap = await _db
+          .collection('students')
+          .where('rollno', whereIn: batch)
+          .where('branch', isEqualTo: branch)
+          .where('section', isEqualTo: section)
+          .get();
+
+      final rollNos = studentsSnap.docs
+          .map((doc) => doc.data()['rollno'] as String)
+          .toList();
+
+      allValidRollNos.addAll(rollNos);
+    }
+
+    print(
+        "✅ Valid students in Year $year, Sem $semester, $branch-$section: ${allValidRollNos.length}");
+    print("👥 Roll numbers: $allValidRollNos");
+
+    // Calculate absent students
+    final absentRolls = allValidRollNos
+        .where((r) => !presentStudentRollNos.contains(r))
+        .toList();
+
+    print(
+        "📊 Present: ${presentStudentRollNos.length}, Absent: ${absentRolls.length}, Total: ${allValidRollNos.length}");
 
     await _db.collection('attendance').doc(docId).set({
-  'date': date,
-  'facultyId': facultyId,
-  'subjectCode': subjectCode,
+      'date': date,
+      'facultyId': facultyId,
+      'subjectCode': subjectCode,
+      'year': year,
+      'semester': semester,
+      'branch': branch,
+      'section': section,
+      'periodNumber': periodNumber,
+      'presentStudentRollNos': presentStudentRollNos,
+      'absentStudentRollNos': absentRolls,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
 
-  // 🔴 REQUIRED SNAPSHOT FIELDS
-  'year': year,
-  'semester': semester,
-  'branch': branch,
-  'section': section,
-
-  'periodNumber': periodNumber,
-  'presentStudentRollNos': presentStudentRollNos,
-  'absentStudentRollNos': absentStudents,
-
-  'timestamp': FieldValue.serverTimestamp(),
-});
-
-    debugPrint('✅ Attendance write SUCCESS');
-  }
-
-  // ---------------------------
-  // Queries
-  // ---------------------------
-
-  Stream<QuerySnapshot> getAttendanceForFacultyByDate(
-    String facultyId,
-    DateTime date,
-  ) {
-    final dateString = date.toIso8601String().split('T').first;
-
-    return _db
-        .collection('attendance')
-        .where('facultyId', isEqualTo: facultyId)
-        .where('date', isEqualTo: dateString)
-        .orderBy('periodNumber')
-        .snapshots();
-  }
-
-  Stream<QuerySnapshot> getAttendanceForStudent(String rollNo) {
-    return _db
-        .collection('attendance')
-        .where('presentStudentRollNos', arrayContains: rollNo)
-        .orderBy('timestamp', descending: true)
-        .snapshots();
+    print("✅ Attendance document created successfully");
   }
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../services/attendance_service.dart';
+import 'package:my_first_app/services/attendance_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class StudentDashboardController extends ChangeNotifier {
@@ -17,7 +17,6 @@ class StudentDashboardController extends ChangeNotifier {
   String rollNo = "";
   double attendancePercentage = 0.0;
 
-  // Constructor can receive rollNo from login
   StudentDashboardController({this.rollNo = ""});
 
   Future<void> loadStudentData() async {
@@ -27,11 +26,8 @@ class StudentDashboardController extends ChangeNotifier {
       notifyListeners();
 
       final user = _auth.currentUser;
-      if (user == null) {
-        throw Exception("User not authenticated");
-      }
+      if (user == null) throw Exception("User not authenticated");
 
-      // Query by rollno field (not document ID)
       final studentsQuery = await FirebaseFirestore.instance
           .collection('students')
           .where('rollno', isEqualTo: rollNo)
@@ -46,15 +42,14 @@ class StudentDashboardController extends ChangeNotifier {
 
       studentName = userData['name'] ?? '';
       rollNo = userData['rollno'] ?? '';
-      
+
       final branch = userData['branch'] ?? '';
       final year = userData['year'] ?? '';
       final section = userData['section'] ?? '';
-      
+
       classInfo = "$year - $branch - $section";
       department = _getDepartmentName(branch);
 
-      // Calculate attendance percentage
       await _calculateAttendancePercentage();
 
       isLoading = false;
@@ -78,7 +73,7 @@ class StudentDashboardController extends ChangeNotifier {
 
   Future<void> _calculateAttendancePercentage() async {
     try {
-      // Get all attendance records for this student
+      // ✅ FIX: correct method name
       final snapshot = await _attendanceService
           .getAttendanceForStudent(rollNo)
           .first;
@@ -88,15 +83,13 @@ class StudentDashboardController extends ChangeNotifier {
         return;
       }
 
-      int totalClasses = snapshot.docs.length;
-      int attendedClasses = snapshot.docs
-          .where((doc) => (doc.data() as Map<String, dynamic>)['presentStudentRollNos']
-              .contains(rollNo))
-          .length;
+      final totalClasses = snapshot.docs.length;
+      final attendedClasses = snapshot.docs.length; 
+      // 👆 already filtered by arrayContains in service
 
-      attendancePercentage = (attendedClasses / totalClasses) * 100;
+      attendancePercentage =
+          ((attendedClasses / totalClasses) * 100).clamp(0, 100);
     } catch (e) {
-      debugPrint("Error calculating attendance: $e");
       attendancePercentage = 0.0;
     }
   }
