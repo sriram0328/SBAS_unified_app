@@ -7,72 +7,61 @@ class LoginService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   /// Unified login for Student & Faculty
-  /// Username = ID
-  /// Password = ID
-  Future<Map<String, dynamic>> login(String userId, String password) async {
+  /// email = REAL email address
+  /// password = password
+  Future<Map<String, dynamic>> login(
+    String email,
+    String password,
+  ) async {
     try {
-      DocumentSnapshot? userDoc;
-      String role = '';
-      final authEmail = '$userId@ex.com';
-
-      /* ---------- STUDENT ---------- */
-      final studentDoc =
-          await _db.collection('students').doc(userId).get();
-
-      if (studentDoc.exists) {
-        role = 'student';
-        userDoc = studentDoc;
-      }
-
-      /* ---------- FACULTY ---------- */
-      if (userDoc == null) {
-        final facultyDoc =
-            await _db.collection('faculty').doc(userId).get();
-
-        if (facultyDoc.exists) {
-          role = 'faculty';
-          userDoc = facultyDoc;
-        }
-      }
-
-      if (userDoc == null) {
-        throw Exception('User not found');
-      }
-
-      /* ---------- PASSWORD CHECK ---------- */
-      if (password != userId) {
-        throw Exception('Invalid credentials');
-      }
-
-      /* ---------- AUTH LOGIN ---------- */
-      await _auth.signInWithEmailAndPassword(
-        email: authEmail,
+      /* ---------- AUTH FIRST ---------- */
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email.trim(), // ✅ REAL email
         password: password,
       );
 
-      final authUid = _auth.currentUser!.uid;
-      final data = userDoc.data() as Map<String, dynamic>;
+      final user = credential.user!;
+      final authUid = user.uid;
 
-      /* ---------- UID VALIDATION ---------- */
-      if (data['authUid'] != authUid) {
+      /* ---------- ROLE FROM CUSTOM CLAIM ---------- */
+      final token = await user.getIdTokenResult(true);
+      final role = token.claims?['role'];
+
+      if (role != 'student' && role != 'faculty') {
         await _auth.signOut();
-        throw Exception('Auth mismatch. Contact admin.');
+        throw Exception('Invalid role. Contact admin.');
       }
 
-      /* ---------- MAP DATA ---------- */
-      final result = {
-        'userId': userDoc.id,
+      /* ---------- READ PROFILE BY UID ---------- */
+      final collection = role == 'student' ? 'students' : 'faculty';
+
+      final userDoc = await _db
+          .collection(collection)
+          .doc(authUid)
+          .get();
+
+      if (!userDoc.exists) {
+        await _auth.signOut();
+        throw Exception(
+          '${role.toString().toUpperCase()} profile not found',
+        );
+      }
+
+      final data = userDoc.data() as Map<String, dynamic>;
+
+      /* ---------- MAP RESULT ---------- */
+      final result = <String, dynamic>{
         'authUid': authUid,
         'role': role,
         'name': data['name'] ?? '',
-        'email': authEmail,
+        'email': email.trim(),
       };
 
       if (role == 'student') {
         result.addAll({
-          'rollNo': userDoc.id,
+          'studentId': authUid,
+          'rollNo': data['rollno'] ?? '',
           'branch': data['branch'] ?? '',
-          'year': data['year'] ?? '',
           'section': data['section'] ?? '',
           'phone': data['studentPhone'] ?? '',
           'parentPhone': data['parentPhone'] ?? '',
@@ -81,16 +70,15 @@ class LoginService {
 
       if (role == 'faculty') {
         result.addAll({
-          'facultyId': userDoc.id,
+          'facultyId': authUid,
           'department': data['department'] ?? '',
           'phone': data['facultyPhone'] ?? '',
           'subjects': data['subjects'] ?? [],
         });
       }
 
-      debugPrint('✅ Login success: $userId ($role)');
+      debugPrint('✅ Login success [$role]: $authUid');
       return result;
-
     } catch (e) {
       debugPrint('❌ Login failed: $e');
       rethrow;

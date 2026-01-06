@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'dashboard/faculty_dashboard_screen.dart';
 import 'timetable/timetable_screen.dart';
 import 'reports/attendance_report_screen.dart';
@@ -14,16 +13,19 @@ class FacultyShell extends StatefulWidget {
 
 class _FacultyShellState extends State<FacultyShell> {
   int _currentIndex = 0;
-
+  late final String facultyId;
   late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
+
+    facultyId = widget.userData['facultyId'];
+
     _screens = [
-      const FacultyDashboardScreen(),
-      TimetableScreen(),
-      const AttendanceReportScreen(),
+      FacultyDashboardScreen(facultyId: facultyId),
+      TimetableScreen(facultyId: facultyId),
+      AttendanceReportScreen(facultyId: facultyId),
     ];
   }
 
@@ -33,23 +35,14 @@ class _FacultyShellState extends State<FacultyShell> {
       body: _screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-        },
-        type: BottomNavigationBarType.fixed,
+        onTap: (i) => setState(() => _currentIndex = i),
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: "Dashboard",
-          ),
+              icon: Icon(Icons.dashboard), label: "Dashboard"),
           BottomNavigationBarItem(
-            icon: Icon(Icons.schedule),
-            label: "Timetable",
-          ),
+              icon: Icon(Icons.schedule), label: "Timetable"),
           BottomNavigationBarItem(
-            icon: Icon(Icons.fact_check),
-            label: "Reports",
-          ),
+              icon: Icon(Icons.fact_check), label: "Reports"),
         ],
       ),
     );

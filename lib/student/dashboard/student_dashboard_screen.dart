@@ -24,7 +24,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    controller = StudentDashboardController(rollNo: widget.userData?['rollNo'] ?? '');
+    controller = StudentDashboardController();
 
     // Prefill known fields so UI doesn't look empty while loading
     controller.studentName = widget.userData?['name'] ?? '';
