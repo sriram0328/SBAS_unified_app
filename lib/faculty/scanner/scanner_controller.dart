@@ -1,3 +1,4 @@
+// lib/faculty/scanner/scanner_controller.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 

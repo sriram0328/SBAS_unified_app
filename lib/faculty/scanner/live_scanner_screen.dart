@@ -1,3 +1,4 @@
+// lib/faculty/scanner/live_scanner_screen.dart
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/session.dart';

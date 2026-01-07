@@ -184,15 +184,48 @@ class AttendanceReportController extends ChangeNotifier {
         );
       }
 
+      // Fetch student details from students collection
+      final Map<String, String> studentNames = {};
+      
+      for (final id in enrolled) {
+        try {
+          // Query by rollno field instead of document ID
+          final studentQuery = await _db
+              .collection('students')
+              .where('rollno', isEqualTo: id)
+              .limit(1)
+              .get();
+          
+          if (studentQuery.docs.isNotEmpty) {
+            final data = studentQuery.docs.first.data();
+            final studentName = data['name'];
+            
+            if (studentName != null && studentName.isNotEmpty) {
+              studentNames[id] = studentName;
+            } else {
+              studentNames[id] = id;
+            }
+          } else {
+            studentNames[id] = id;
+          }
+        } catch (e) {
+          print('Error fetching student $id: $e');
+          studentNames[id] = id;
+        }
+      }
+
       for (final id in enrolled) {
         _allRows.add(
           _Row(
             roll: id,
-            name: id,
+            name: studentNames[id] ?? id,
             present: present.contains(id),
           ),
         );
       }
+
+      // Sort by roll number in ascending order
+      _allRows.sort((a, b) => a.roll.compareTo(b.roll));
 
       totalCount = enrolled.length;
       presentCount = present.length;
@@ -230,6 +263,55 @@ class AttendanceReportController extends ChangeNotifier {
     if (pill != null) activeFilter = pill;
 
     refresh();
+  }
+
+  // ---------------- DOWNLOAD CSV ----------------
+  String generateCSV() {
+    final buffer = StringBuffer();
+    
+    // Main Heading
+    final dateFormatted = date != null 
+        ? DateTime.parse(date!).toLocal().toString().split(' ')[0].split('-').reversed.join('-')
+        : '';
+    buffer.writeln('$year $branch-$section $dateFormatted');
+    buffer.writeln('Subject: $subject');
+    buffer.writeln('Period: $period');
+    buffer.writeln('');
+    
+    // Header
+    buffer.writeln('Roll Number,Name,Status');
+    
+    // Get the rows based on active filter
+    final List<_Row> rowsToExport;
+    if (activeFilter == 'present') {
+      rowsToExport = _allRows.where((e) => e.present).toList();
+    } else if (activeFilter == 'absent') {
+      rowsToExport = _allRows.where((e) => !e.present).toList();
+    } else {
+      rowsToExport = _allRows;
+    }
+    
+    // Data rows
+    for (final row in rowsToExport) {
+      buffer.writeln('${row.roll},${row.name},${row.present ? 'Present' : 'Absent'}');
+    }
+    
+    buffer.writeln('');
+    buffer.writeln('Total: $totalCount, Present: $presentCount, Absent: $absentCount');
+    
+    return buffer.toString();
+  }
+
+  // ---------------- DOWNLOAD PDF ----------------
+  String getReportHeading() {
+    final dateFormatted = date != null 
+        ? DateTime.parse(date!).toLocal().toString().split(' ')[0].split('-').reversed.join('-')
+        : '';
+    return '$year $branch-$section $dateFormatted';
+  }
+
+  String getSubjectInfo() {
+    return 'Subject: $subject | Period: $period';
   }
 }
 
