@@ -129,7 +129,9 @@ class AttendanceReportController extends ChangeNotifier {
         branch == null ||
         year == null ||
         section == null ||
-        period == null) return;
+        period == null) {
+      return;
+    }
 
     try {
       isLoading = true;

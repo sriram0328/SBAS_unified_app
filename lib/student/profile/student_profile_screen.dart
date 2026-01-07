@@ -15,6 +15,10 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   void initState() {
     super.initState();
     controller = StudentProfileController();
+    controller.addListener(() {
+      if (mounted) setState(() {});
+    });
+    controller.loadStudentData();
   }
 
   @override
@@ -31,64 +35,72 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         leading: const BackButton(),
         title: const Text("My Profile"),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () => controller.editProfile(context),
-          ),
+          if (!controller.isLoading)
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () => controller.editProfile(context),
+            ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 44,
-              backgroundColor: Colors.blue.withValues(alpha: 0.15),
-              child: const Icon(Icons.person, size: 44, color: Colors.blue),
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              controller.name,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+      body: controller.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 44,
+                    backgroundColor: Colors.blue.withValues(alpha: 0.15),
+                    child: const Icon(Icons.person,
+                        size: 44, color: Colors.blue),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    controller.name,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    controller.email,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 30),
+                  _SectionCard(
+                    title: "Academic Details",
+                    children: [
+                      _InfoRow("Roll No", controller.rollNo),
+                      _InfoRow("Branch", controller.branch),
+                      _InfoRow("Section", controller.section),
+                      _InfoRow("Year", controller.year),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _SectionCard(
+                    title: "Contact Information",
+                    children: [
+                      _InfoRow("Phone", controller.phone.isNotEmpty
+                          ? controller.phone
+                          : 'Not provided'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _SectionCard(
+                    title: "Settings",
+                    children: [
+                      _ActionRow(
+                        title: "Logout",
+                        onTap: () => controller.logout(context),
+                        isDestructive: true,
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-
-            const SizedBox(height: 4),
-
-            Text(
-              controller.email,
-              style: const TextStyle(color: Colors.grey),
-            ),
-
-            const SizedBox(height: 30),
-
-            _SectionCard(
-              title: "Academic Details",
-              children: [
-                _InfoRow("Roll No", controller.rollNo),
-                _InfoRow("Branch", controller.branch),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            _SectionCard(
-              title: "Settings",
-              children: [
-                _ActionRow(
-                  title: "Logout",
-                  onTap: () => controller.logout(context),
-                  isDestructive: true,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -1,21 +1,65 @@
+
+// student_profile_controller.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class StudentProfileController {
-  // Dummy data (replace with Firebase later)
-  String name = "Sriram Ramanadham";
-  String email = "sriram@gmail.com";
-  String phone = "+91 98765 43210";
-  String rollNo = "22H71A6146";
-  String branch = "AIML";
+class StudentProfileController extends ChangeNotifier {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  bool isLoading = true;
+  String name = "";
+  String email = "";
+  String phone = "";
+  String rollNo = "";
+  String branch = "";
+  String section = "";
+  String year = "";
 
   final nameController = TextEditingController();
-  final emailController = TextEditingController();
   final phoneController = TextEditingController();
+
+  Future<void> loadStudentData() async {
+    isLoading = true;
+    notifyListeners();
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      final doc = await _db.collection('students').doc(user.uid).get();
+
+      if (!doc.exists) {
+        isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      final data = doc.data()!;
+      name = data['name'] ?? '';
+      email = data['email'] ?? '';
+      phone = data['studentPhone'] ?? '';
+      rollNo = data['rollno'] ?? '';
+      branch = data['branch'] ?? '';
+      section = data['section'] ?? '';
+      year = data['year'] ?? '';
+
+      isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      print('Error loading student data: $e');
+      isLoading = false;
+      notifyListeners();
+    }
+  }
 
   void editProfile(BuildContext context) {
     nameController.text = name;
-    emailController.text = email;
     phoneController.text = phone;
 
     showDialog(
@@ -43,9 +87,7 @@ class StudentProfileController {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
                 TextField(
                   controller: nameController,
                   decoration: const InputDecoration(
@@ -53,19 +95,7 @@ class StudentProfileController {
                     prefixIcon: Icon(Icons.person),
                   ),
                 ),
-
                 const SizedBox(height: 12),
-
-                TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(
-                    labelText: "Email",
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
                 TextField(
                   controller: phoneController,
                   keyboardType: TextInputType.phone,
@@ -74,9 +104,7 @@ class StudentProfileController {
                     prefixIcon: Icon(Icons.phone),
                   ),
                 ),
-
                 const SizedBox(height: 24),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -86,12 +114,7 @@ class StudentProfileController {
                     ),
                     const SizedBox(width: 10),
                     ElevatedButton(
-                      onPressed: () {
-                        name = nameController.text;
-                        email = emailController.text;
-                        phone = phoneController.text;
-                        Navigator.pop(context);
-                      },
+                      onPressed: () => _saveProfile(context),
                       child: const Text("Save"),
                     ),
                   ],
@@ -104,8 +127,43 @@ class StudentProfileController {
     );
   }
 
+  Future<void> _saveProfile(BuildContext context) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      await _db.collection('students').doc(user.uid).update({
+        'name': nameController.text,
+        'studentPhone': phoneController.text,
+      });
+
+      name = nameController.text;
+      phone = phoneController.text;
+      
+      notifyListeners();
+      
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Profile updated successfully"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error updating profile: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> logout(BuildContext context) async {
-    // Show confirmation dialog
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -133,47 +191,32 @@ class StudentProfileController {
       },
     );
 
-    // If user cancelled, return
-    if (shouldLogout != true) return;
+    if (shouldLogout != true || !context.mounted) return;
 
     try {
-      // Show loading indicator
-      if (context.mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          },
-        );
-      }
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        },
+      );
 
-      // Sign out from Firebase
-      await FirebaseAuth.instance.signOut();
+      await _auth.signOut();
 
-      // Close loading indicator
       if (context.mounted) {
         Navigator.pop(context);
-      }
-
-      // Navigate to login screen and clear navigation stack
-      if (context.mounted) {
         Navigator.pushNamedAndRemoveUntil(
           context,
-          '/login', // Adjust this to your login route
+          '/login',
           (route) => false,
         );
       }
     } catch (e) {
-      // Close loading indicator if still showing
       if (context.mounted) {
         Navigator.pop(context);
-      }
-
-      // Show error message
-      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Logout failed: ${e.toString()}"),
@@ -184,9 +227,10 @@ class StudentProfileController {
     }
   }
 
+  @override
   void dispose() {
     nameController.dispose();
-    emailController.dispose();
     phoneController.dispose();
+    super.dispose();
   }
 }

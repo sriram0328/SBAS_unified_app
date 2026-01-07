@@ -15,17 +15,16 @@ class StudentShell extends StatefulWidget {
 
 class _StudentShellState extends State<StudentShell> {
   int _currentIndex = 0;
-
   late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
-    _screens = [
-      StudentDashboardScreen(userData: widget.userData),
-      const StudentIdScreen(),
-      const AttendanceOverviewScreen(),
-      const StudentProfileScreen(),
+    _screens = const [
+      StudentDashboardScreen(),
+      StudentIdScreen(),
+      AttendanceOverviewScreen(),
+      StudentProfileScreen(),
     ];
   }
 
@@ -92,6 +91,7 @@ class _StudentShellState extends State<StudentShell> {
     });
   }
 }
+
 class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;

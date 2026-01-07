@@ -1,57 +1,66 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../services/attendance_service.dart';
 
 class StudentDashboardController extends ChangeNotifier {
-  final AttendanceService _attendanceService = AttendanceService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   bool isLoading = true;
   String? errorMessage;
 
+  // Student Info
   String studentName = "";
-  String department = "";
-  String classInfo = "";
   String rollNo = "";
+  String branch = "";
+  String section = "";
+  String yearOfStudy = "";
+  String department = "";
+
   double attendancePercentage = 0.0;
 
   /// ----------------------------
-  /// LOAD STUDENT DASHBOARD
+  /// LOAD DASHBOARD DATA
   /// ----------------------------
   Future<void> loadStudentData() async {
     try {
       isLoading = true;
-      errorMessage = null;
       notifyListeners();
 
       final user = _auth.currentUser;
-      if (user == null) {
-        throw Exception("User not authenticated");
+      if (user == null) throw Exception("User not logged in");
+
+      /// 1️⃣ Fetch student document
+      final studentDoc =
+          await _firestore.collection('students').doc(user.uid).get();
+
+      if (!studentDoc.exists) {
+        throw Exception("Student record not found");
       }
 
-      final doc = await FirebaseFirestore.instance
-          .collection('students')
-          .doc(user.uid)
-          .get();
+      final studentData = studentDoc.data()!;
+      studentName = studentData['name'] ?? '';
+      rollNo = studentData['rollno'] ?? '';
+      branch = studentData['branch'] ?? '';
+      section = studentData['section'] ?? '';
 
-      if (!doc.exists) {
-        throw Exception("Student data not found");
-      }
-
-      final data = doc.data()!;
-
-      studentName = data['name'] ?? '';
-      rollNo = data['rollno'] ?? '';
-
-      final branch = data['branch'] ?? '';
-      final year = data['year'] ?? '';
-      final section = data['section'] ?? '';
-
-      classInfo = "$year - $branch - $section";
       department = _getDepartmentName(branch);
 
-      await _calculateAttendancePercentage();
+      /// 2️⃣ Fetch academic record (year)
+      final academicSnap = await _firestore
+          .collection('academic_records')
+          .where('studentId', isEqualTo: user.uid)
+          .where('status', isEqualTo: 'active')
+          .limit(1)
+          .get();
+
+      if (academicSnap.docs.isNotEmpty) {
+        yearOfStudy =
+            academicSnap.docs.first.data()['yearOfStudy'].toString();
+      }
+
+      /// 3️⃣ Calculate attendance %
+      await _calculateAttendance();
 
       isLoading = false;
       notifyListeners();
@@ -63,45 +72,42 @@ class StudentDashboardController extends ChangeNotifier {
   }
 
   /// ----------------------------
-  /// ATTENDANCE %
+  /// ATTENDANCE CALCULATION
   /// ----------------------------
-  Future<void> _calculateAttendancePercentage() async {
-    try {
-      if (rollNo.isEmpty) {
-        attendancePercentage = 0.0;
-        return;
-      }
-
-      final records =
-          await _attendanceService.getAttendanceForStudentRoll(
-        rollNo: rollNo,
-      );
-
-      if (records.isEmpty) {
-        attendancePercentage = 0.0;
-        return;
-      }
-
-      final presentCount =
-          records.where((r) => r['isPresent'] == true).length;
-
-      attendancePercentage =
-          (presentCount / records.length) * 100.0;
-    } catch (_) {
-      attendancePercentage = 0.0;
+  Future<void> _calculateAttendance() async {
+    if (rollNo.isEmpty) {
+      attendancePercentage = 0;
+      return;
     }
-  }
 
-  /// ----------------------------
-  /// REFRESH
-  /// ----------------------------
-  Future<void> refresh() async {
-    await loadStudentData();
+    final attendanceSnap =
+        await _firestore.collection('attendance').get();
+
+    int totalClasses = 0;
+    int presentCount = 0;
+
+    for (var doc in attendanceSnap.docs) {
+      final data = doc.data();
+
+      if (data.containsKey('enrolledStudentIds')) {
+        totalClasses++;
+
+        final List enrolled = data['enrolledStudentIds'];
+        if (enrolled.contains(rollNo)) {
+          presentCount++;
+        }
+      }
+    }
+
+    attendancePercentage =
+        totalClasses == 0 ? 0 : (presentCount / totalClasses) * 100;
   }
 
   /// ----------------------------
   /// HELPERS
   /// ----------------------------
+  String get classInfo => "$yearOfStudy - $branch - $section";
+
   String _getDepartmentName(String branch) {
     const departments = {
       'AIML': 'Artificial Intelligence & Machine Learning',

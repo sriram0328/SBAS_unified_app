@@ -170,7 +170,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                         ),
                       ],
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ];
@@ -308,7 +308,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     return SizedBox(
       width: 150,
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
