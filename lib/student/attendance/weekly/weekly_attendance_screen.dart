@@ -1,4 +1,3 @@
-// weekly_attendance_screen.dart
 import 'package:flutter/material.dart';
 import 'weekly_attendance_controller.dart';
 
@@ -15,14 +14,10 @@ class _WeeklyAttendanceViewState extends State<WeeklyAttendanceView> {
   @override
   void initState() {
     super.initState();
-    _loadData();
     _controller.addListener(() {
-      setState(() {});
+      if (mounted) setState(() {});
     });
-  }
-
-  Future<void> _loadData() async {
-    await _controller.loadWeeklyAttendance("your_roll_no");
+    _controller.loadWeeklyAttendance();
   }
 
   @override
@@ -37,29 +32,95 @@ class _WeeklyAttendanceViewState extends State<WeeklyAttendanceView> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _WeekSummary(
-          percentage: _controller.weeklyPercentage,
-          attended: _controller.attendedClasses,
-          total: _controller.totalClasses,
-        ),
-        const SizedBox(height: 24),
-        ..._controller.days.map((day) => _DayBar(
-              dayData: day,
-              onTap: () => _showDayDetails(context, day),
-            )),
-      ],
+    return RefreshIndicator(
+      onRefresh: _controller.refresh,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _WeekSummary(
+            percentage: _controller.weeklyPercentage,
+            attended: _controller.attendedClasses,
+            total: _controller.totalClasses,
+          ),
+          const SizedBox(height: 20),
+          
+          // Week Navigation
+          _WeekNavigationBar(controller: _controller),
+          
+          const SizedBox(height: 24),
+          if (_controller.days.isEmpty)
+            _EmptyState()
+          else
+            ..._controller.days.map((day) => _DayBar(
+                  dayData: day,
+                  onTap: () => _showDayDetails(context, day),
+                )),
+        ],
+      ),
     );
   }
 
   void _showDayDetails(BuildContext context, DayAttendance dayData) {
+    if (dayData.total == 0) return;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _DayDetailsSheet(dayData: dayData),
+    );
+  }
+}
+
+class _WeekNavigationBar extends StatelessWidget {
+  final WeeklyAttendanceController controller;
+
+  const _WeekNavigationBar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left, size: 28),
+            onPressed: controller.previousWeek,
+            color: Colors.black87,
+          ),
+          Expanded(
+            child: Text(
+              controller.getWeekLabel(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.chevron_right,
+              size: 28,
+              color: controller.canGoNext() ? Colors.black87 : Colors.grey.shade300,
+            ),
+            onPressed: controller.canGoNext() ? controller.nextWeek : null,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -166,6 +227,42 @@ class _DayBar extends StatelessWidget {
     final percentage = dayData.percentage;
     final color = dayData.color;
 
+    // If no classes on this day, show it differently
+    if (dayData.total == 0) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 45,
+              child: Text(
+                dayData.day,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                "No classes",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[500],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -257,10 +354,6 @@ class _DayBar extends StatelessWidget {
     );
   }
 }
-
-/* ========================
-   DAY DETAILS BOTTOM SHEET
-   ======================== */
 
 class _DayDetailsSheet extends StatelessWidget {
   final DayAttendance dayData;
@@ -456,6 +549,37 @@ class _SubjectTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          children: [
+            Icon(Icons.calendar_month, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No attendance this week',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your weekly attendance will appear here',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

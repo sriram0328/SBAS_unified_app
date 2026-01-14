@@ -1,63 +1,138 @@
-// daily_attendance_screen.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'daily_attendance_controller.dart';
 
-class DailyAttendanceView extends StatelessWidget {
+class DailyAttendanceView extends StatefulWidget {
   const DailyAttendanceView({super.key});
 
   @override
+  State<DailyAttendanceView> createState() => _DailyAttendanceViewState();
+}
+
+class _DailyAttendanceViewState extends State<DailyAttendanceView> {
+  final DailyAttendanceController _controller = DailyAttendanceController();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _controller.loadDailyAttendance();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: const [
-        _DaySummary(),
-        SizedBox(height: 20),
-        _PeriodTile("09:00", "Machine Learning", true),
-        _PeriodTile("10:00", "DBMS", true),
-        _PeriodTile("11:00", "P&S", false),
-        _PeriodTile("12:00", "Machine Learning", true),
-      ],
+    if (_controller.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return RefreshIndicator(
+      onRefresh: _controller.refresh,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _DaySummary(
+            date: _controller.selectedDate,
+            presentCount: _controller.presentCount,
+            absentCount: _controller.absentCount,
+            onDateTap: () => _selectDate(context),
+          ),
+          const SizedBox(height: 20),
+          if (_controller.periods.isEmpty)
+            _EmptyState()
+          else
+            ..._controller.periods.map((period) => _PeriodTile(
+                  period.time,
+                  period.subject,
+                  period.faculty,
+                  period.isPresent,
+                )),
+        ],
+      ),
     );
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _controller.selectedDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      _controller.changeDate(picked);
+    }
   }
 }
 
 class _DaySummary extends StatelessWidget {
-  const _DaySummary();
+  final DateTime date;
+  final int presentCount;
+  final int absentCount;
+  final VoidCallback onDateTap;
+
+  const _DaySummary({
+    required this.date,
+    required this.presentCount,
+    required this.absentCount,
+    required this.onDateTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Wed, 17 Dec",
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
+    return GestureDetector(
+      onTap: onDateTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: const [
-              _Chip("5 Present", Colors.green),
-              SizedBox(width: 12),
-              _Chip("1 Absent", Colors.red),
-            ],
-          ),
-        ],
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  DateFormat('EEE, dd MMM').format(date),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                Icon(
+                  Icons.calendar_today,
+                  size: 18,
+                  color: Colors.grey[600],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _Chip("$presentCount Present", Colors.green),
+                const SizedBox(width: 12),
+                _Chip("$absentCount Absent", Colors.red),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -92,9 +167,10 @@ class _Chip extends StatelessWidget {
 class _PeriodTile extends StatelessWidget {
   final String time;
   final String subject;
+  final String faculty;
   final bool present;
 
-  const _PeriodTile(this.time, this.subject, this.present);
+  const _PeriodTile(this.time, this.subject, this.faculty, this.present);
 
   @override
   Widget build(BuildContext context) {
@@ -138,6 +214,14 @@ class _PeriodTile extends StatelessWidget {
                     color: Colors.black87,
                   ),
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  faculty,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
               ],
             ),
           ),
@@ -158,6 +242,37 @@ class _PeriodTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          children: [
+            Icon(Icons.event_busy, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No classes today',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No attendance records found for this date',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

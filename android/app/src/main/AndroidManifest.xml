@@ -4,7 +4,7 @@
     <uses-feature android:name="android.hardware.camera.autofocus" />
 
     <application
-        android:label="my_first_app"
+        android:label="SBAS Attendance"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

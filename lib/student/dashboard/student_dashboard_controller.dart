@@ -16,7 +16,6 @@ class StudentDashboardController extends ChangeNotifier {
   String section = "";
   String yearOfStudy = "";
   String department = "";
-
   double attendancePercentage = 0.0;
 
   /// ----------------------------
@@ -43,7 +42,6 @@ class StudentDashboardController extends ChangeNotifier {
       rollNo = studentData['rollno'] ?? '';
       branch = studentData['branch'] ?? '';
       section = studentData['section'] ?? '';
-
       department = _getDepartmentName(branch);
 
       /// 2️⃣ Fetch academic record (year)
@@ -72,7 +70,7 @@ class StudentDashboardController extends ChangeNotifier {
   }
 
   /// ----------------------------
-  /// ATTENDANCE CALCULATION
+  /// ATTENDANCE CALCULATION (FIXED)
   /// ----------------------------
   Future<void> _calculateAttendance() async {
     if (rollNo.isEmpty) {
@@ -80,27 +78,41 @@ class StudentDashboardController extends ChangeNotifier {
       return;
     }
 
-    final attendanceSnap =
-        await _firestore.collection('attendance').get();
+    try {
+      // Query only attendance records where this student is enrolled
+      final attendanceSnap = await _firestore
+          .collection('attendance')
+          .where('enrolledStudentIds', arrayContains: rollNo)
+          .get();
 
-    int totalClasses = 0;
-    int presentCount = 0;
+      int totalClasses = 0;
+      int presentCount = 0;
 
-    for (var doc in attendanceSnap.docs) {
-      final data = doc.data();
+      for (var doc in attendanceSnap.docs) {
+        final data = doc.data();
+        
+        // Get the enrolled and present lists
+        final List<dynamic> enrolledList = data['enrolledStudentIds'] ?? [];
+        final List<dynamic> presentList = data['presentStudentIds'] ?? [];
 
-      if (data.containsKey('enrolledStudentIds')) {
-        totalClasses++;
-
-        final List enrolled = data['enrolledStudentIds'];
-        if (enrolled.contains(rollNo)) {
-          presentCount++;
+        // Only count classes where student is enrolled
+        if (enrolledList.contains(rollNo)) {
+          totalClasses++;
+          
+          // Check if student was present
+          if (presentList.contains(rollNo)) {
+            presentCount++;
+          }
         }
       }
-    }
 
-    attendancePercentage =
-        totalClasses == 0 ? 0 : (presentCount / totalClasses) * 100;
+      // Calculate percentage
+      attendancePercentage =
+          totalClasses == 0 ? 0 : (presentCount / totalClasses) * 100;
+    } catch (e) {
+      print('Error calculating attendance: $e');
+      attendancePercentage = 0;
+    }
   }
 
   /// ----------------------------
@@ -111,9 +123,12 @@ class StudentDashboardController extends ChangeNotifier {
   String _getDepartmentName(String branch) {
     const departments = {
       'AIML': 'Artificial Intelligence & Machine Learning',
+      'AIDS': 'Artificial Intelligence & Data Science',
       'CSE': 'Computer Science & Engineering',
       'ECE': 'Electronics & Communication Engineering',
       'EEE': 'Electrical & Electronics Engineering',
+      'MECH': 'Mechanical Engineering',
+      'CIVIL': 'Civil Engineering',
     };
     return departments[branch] ?? branch;
   }

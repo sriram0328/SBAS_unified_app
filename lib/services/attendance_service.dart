@@ -172,4 +172,88 @@ class AttendanceService {
       'timestamp': FieldValue.serverTimestamp(),
     });
   }
+
+  // ========== ADDED METHODS FOR NEW CONTROLLERS ==========
+
+  /// Get faculty name by ID
+  Future<String> getFacultyName(String facultyId) async {
+    if (facultyId.isEmpty) return 'Unknown';
+    
+    try {
+      final doc = await _db.collection('faculty').doc(facultyId).get();
+      if (doc.exists) {
+        return doc.data()?['name'] ?? 'Unknown';
+      }
+    } catch (e) {
+      print('Error fetching faculty: $e');
+    }
+    return 'Unknown';
+  }
+
+  /// Get student info by user ID
+  Future<Map<String, dynamic>?> getStudentInfo(String userId) async {
+    try {
+      final doc = await _db.collection('students').doc(userId).get();
+      if (doc.exists) {
+        return doc.data();
+      }
+    } catch (e) {
+      print('Error fetching student info: $e');
+    }
+    return null;
+  }
+
+  /// Get overall attendance percentage for a student
+  Future<double> getOverallAttendancePercentage(String rollNo) async {
+    try {
+      int totalClasses = 0;
+      int attendedClasses = 0;
+
+      final snapshot = await _db
+          .collection('attendance')
+          .where('enrolledStudentIds', arrayContains: rollNo)
+          .get();
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final enrolledStudents = List<String>.from(data['enrolledStudentIds'] ?? []);
+        final presentStudents = List<String>.from(data['presentStudentIds'] ?? []);
+
+        if (enrolledStudents.contains(rollNo)) {
+          totalClasses++;
+          if (presentStudents.contains(rollNo)) {
+            attendedClasses++;
+          }
+        }
+      }
+
+      return totalClasses > 0 ? attendedClasses / totalClasses : 0.0;
+    } catch (e) {
+      print('Error calculating overall attendance: $e');
+      return 0.0;
+    }
+  }
+}
+
+/// Helper class for period time mapping
+class PeriodTimeHelper {
+  static const Map<int, String> periodTimings = {
+    1: '09:00 AM',
+    2: '10:00 AM',
+    3: '11:00 AM',
+    4: '12:00 PM',
+    5: '01:00 PM',
+    6: '02:00 PM',
+    7: '03:00 PM',
+    8: '04:00 PM',
+  };
+
+  static String getTime(int periodNumber) {
+    return periodTimings[periodNumber] ?? '${periodNumber}:00 AM';
+  }
+
+  static String getTimeShort(int periodNumber) {
+    final time = getTime(periodNumber);
+    return time.replaceAll(' AM', '').replaceAll(' PM', '');
+  }
 }

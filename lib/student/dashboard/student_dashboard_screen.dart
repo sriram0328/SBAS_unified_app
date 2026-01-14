@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:my_first_app/core/colors.dart';
-import 'package:my_first_app/student/attendance/attendance_history_screen.dart';
-import 'package:my_first_app/student/attendance/attendance_overview_screen.dart';
-import 'package:my_first_app/student/dashboard/student_dashboard_controller.dart';
-import 'package:my_first_app/student/id_card/student_id_screen.dart';
-import 'package:my_first_app/student/profile/student_profile_screen.dart';
-import 'package:my_first_app/auth/login/login_screen.dart';
+import '/core/colors.dart';
+import '/student/attendance/attendance_history_screen.dart';
+import '/student/attendance/attendance_overview_screen.dart';
+import '/student/dashboard/student_dashboard_controller.dart';
+import '/student/id_card/student_id_screen.dart';
+import '/student/profile/student_profile_screen.dart';
+import '/auth/login/login_screen.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   const StudentDashboardScreen({super.key});
