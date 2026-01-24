@@ -11,8 +11,7 @@ class AttendanceReportScreen extends StatefulWidget {
   const AttendanceReportScreen({super.key, required this.facultyId});
 
   @override
-  State<AttendanceReportScreen> createState() =>
-      _AttendanceReportScreenState();
+  State<AttendanceReportScreen> createState() => _AttendanceReportScreenState();
 }
 
 class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
@@ -23,12 +22,12 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     super.initState();
     controller = AttendanceReportController(facultyId: widget.facultyId);
     controller.addListener(_rebuild);
-    controller.initialize();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) controller.initialize();
+    });
   }
 
-  void _rebuild() {
-    if (mounted) setState(() {});
-  }
+  void _rebuild() { if (mounted) setState(() {}); }
 
   @override
   void dispose() {
@@ -37,364 +36,293 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     super.dispose();
   }
 
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      final formatted = picked.toIso8601String().substring(0, 10);
+      controller.updateFilter(dateValue: formatted);
+    }
+  }
+
   Future<void> _downloadCSV() async {
     try {
       final csv = controller.generateCSV();
-      
-      final directory = await getApplicationDocumentsDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'attendance_report_$timestamp.csv';
-      final filePath = '${directory.path}/$fileName';
-      
-      final file = File(filePath);
-      await file.writeAsString(csv);
-      
-      await Share.shareXFiles(
-        [XFile(filePath)],
-        subject: 'Attendance Report',
-      );
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('CSV Report downloaded successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error downloading CSV: $e')),
-        );
-      }
-    }
+      final directory = await getTemporaryDirectory();
+      final filePath = '${directory.path}/report_${DateTime.now().millisecondsSinceEpoch}.csv';
+      await File(filePath).writeAsString(csv);
+      await Share.shareXFiles([XFile(filePath)], subject: 'Attendance Report');
+      _showSnackBar('CSV Shared successfully');
+    } catch (e) { _showSnackBar('Error: $e'); }
   }
 
   Future<void> _downloadPDF() async {
     try {
       final pdf = pw.Document();
-      
-      // Get filtered rows
-      final List rows;
-      if (controller.activeFilter == 'present') {
-        rows = controller.visibleRolls.where((e) => e.present).toList();
-      } else if (controller.activeFilter == 'absent') {
-        rows = controller.visibleRolls.where((e) => !e.present).toList();
-      } else {
-        rows = controller.visibleRolls;
-      }
-
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(32),
-          build: (pw.Context context) {
-            return [
-              // Main Heading
-              pw.Text(
-                controller.getReportHeading(),
-                style: pw.TextStyle(
-                  fontSize: 20,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 8),
-              pw.Text(
-                controller.getSubjectInfo(),
-                style: const pw.TextStyle(fontSize: 12),
-              ),
-              pw.SizedBox(height: 20),
-              
-              // Summary
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Total: ${controller.totalCount}'),
-                  pw.Text('Present: ${controller.presentCount}'),
-                  pw.Text('Absent: ${controller.absentCount}'),
-                ],
-              ),
-              pw.SizedBox(height: 20),
-              
-              // Table
-              pw.Table(
-                border: pw.TableBorder.all(color: PdfColors.grey400),
-                children: [
-                  // Header
-                  pw.TableRow(
-                    decoration: const pw.BoxDecoration(
-                      color: PdfColors.grey300,
-                    ),
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(8),
-                        child: pw.Text(
-                          'Roll Number',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(8),
-                        child: pw.Text(
-                          'Name',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(8),
-                        child: pw.Text(
-                          'Status',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  // Data rows
-                  ...rows.map((row) {
-                    return pw.TableRow(
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(row.roll),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(row.name),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            row.present ? 'Present' : 'Absent',
-                            style: pw.TextStyle(
-                              color: row.present ? PdfColors.green : PdfColors.red,
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
-                ],
-              ),
-            ];
-          },
-        ),
-      );
-
-      final directory = await getApplicationDocumentsDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'attendance_report_$timestamp.pdf';
-      final filePath = '${directory.path}/$fileName';
-      
-      final file = File(filePath);
-      await file.writeAsBytes(await pdf.save());
-      
-      await Share.shareXFiles(
-        [XFile(filePath)],
-        subject: 'Attendance Report',
-      );
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PDF Report downloaded successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error downloading PDF: $e')),
-        );
-      }
-    }
+      pdf.addPage(pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) => [
+          pw.Text(controller.getReportHeading(), style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+          pw.Text(controller.getSubjectInfo()),
+          pw.SizedBox(height: 20),
+          pw.TableHelper.fromTextArray(
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+            headers: ['Roll Number', 'Name', 'Status'],
+            data: controller.visibleRolls.map((r) => [r.roll, r.name, r.present ? 'Present' : 'Absent']).toList(),
+          ),
+        ],
+      ));
+      final directory = await getTemporaryDirectory();
+      final filePath = '${directory.path}/report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      await File(filePath).writeAsBytes(await pdf.save());
+      await Share.shareXFiles([XFile(filePath)], subject: 'Attendance Report');
+      _showSnackBar('PDF Shared successfully');
+    } catch (e) { _showSnackBar('Error: $e'); }
   }
 
   void _showDownloadOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.description),
-                title: const Text('Download as CSV'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _downloadCSV();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.picture_as_pdf),
-                title: const Text('Download as PDF'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _downloadPDF();
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    showModalBottomSheet(context: context, builder: (context) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      ListTile(leading: const Icon(Icons.description), title: const Text('CSV'), onTap: () { Navigator.pop(context); _downloadCSV(); }),
+      ListTile(leading: const Icon(Icons.picture_as_pdf), title: const Text('PDF'), onTap: () { Navigator.pop(context); _downloadPDF(); }),
+    ])));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Attendance Report'),
+        title: const Text('Attendance Report', style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.download),
-            onPressed: controller.isLoading || controller.totalCount == 0
-                ? null
-                : _showDownloadOptions,
-            tooltip: 'Download Report',
+            icon: const Icon(Icons.file_download_outlined), 
+            onPressed: controller.isLoading || controller.totalCount == 0 ? null : _showDownloadOptions
           ),
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: controller.isLoading ? null : controller.refresh,
+            icon: const Icon(Icons.refresh_rounded), 
+            onPressed: controller.isLoading ? null : controller.refresh
           ),
         ],
       ),
-      body: controller.isInitializing
-          ? const Center(child: CircularProgressIndicator())
+      body: controller.isInitializing 
+          ? const Center(child: CircularProgressIndicator()) 
           : Column(
               children: [
-                _filters(),
-                _counts(),
-                const Divider(),
-                _pills(),
-                const Divider(),
-                Expanded(child: _list()),
+                _buildFilters(),
+                _buildStatsCard(),
+                _buildSmoothScrollPills(),
+                _buildSearchBar(),
+                const Divider(height: 1),
+                Expanded(child: _buildList()),
               ],
             ),
     );
   }
 
-  Widget _filters() {
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
+  Widget _buildFilters() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
         children: [
-          _dd(controller.dates, controller.date, 'Date',
-              (v) => controller.updateFilter(dateValue: v)),
-          _dd(controller.subjects, controller.subject, 'Subject',
-              (v) => controller.updateFilter(subjectValue: v)),
-          _dd(controller.years, controller.year, 'Year',
-              (v) => controller.updateFilter(yearValue: v)),
-          _dd(controller.branches, controller.branch, 'Branch',
-              (v) => controller.updateFilter(branchValue: v)),
-          _dd(controller.sections, controller.section, 'Section',
-              (v) => controller.updateFilter(sectionValue: v)),
-          _dd(
-            controller.periods.map((e) => e.toString()).toList(),
-            controller.period?.toString(),
-            'Period',
-            (v) => controller.updateFilter(
-                periodValue: int.parse(v)),
+          Row(
+            children: [
+              Expanded(
+                child: Stack(
+                  alignment: Alignment.centerRight,
+                  children: [
+                    _dropdownField(controller.dates, controller.date, 'Date', (v) => controller.updateFilter(dateValue: v)),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 35),
+                      child: IconButton(
+                        icon: const Icon(Icons.calendar_month_outlined, size: 20, color: Colors.blue),
+                        onPressed: _pickDate,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: _dropdownField(controller.subjects, controller.subject, 'Subject', (v) => controller.updateFilter(subjectValue: v))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _dropdownField(controller.years, controller.year, 'Year', (v) => controller.updateFilter(yearValue: v))),
+              const SizedBox(width: 10),
+              Expanded(child: _dropdownField(controller.branches, controller.branch, 'Branch', (v) => controller.updateFilter(branchValue: v))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _dropdownField(controller.sections, controller.section, 'Section', (v) => controller.updateFilter(sectionValue: v))),
+              const SizedBox(width: 10),
+              Expanded(child: _dropdownField(controller.periods.map((e) => e.toString()).toList(), controller.period?.toString(), 'Period', (v) => controller.updateFilter(periodValue: int.tryParse(v)))),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _dd(
-    List<String> items,
-    String? value,
-    String label,
-    ValueChanged<String> onChanged,
-  ) {
-    return SizedBox(
-      width: 150,
-      child: DropdownButtonFormField<String>(
-        initialValue: value,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
-        items: items
-            .map((e) =>
-                DropdownMenuItem(value: e, child: Text(e)))
-            .toList(),
-        onChanged: value == null ? null : (v) => onChanged(v!),
+  Widget _dropdownField(List<String> items, String? value, String label, ValueChanged<String> onChanged) {
+    return DropdownButtonFormField<String>(
+      initialValue: (items.contains(value)) ? value : null,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        // Fix: Updated withOpacity to withValues for latest Flutter
+        fillColor: Colors.blueGrey[50]?.withValues(alpha: 0.5),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       ),
+      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis))).toList(),
+      onChanged: (v) { if (v != null) onChanged(v); },
     );
   }
 
-  Widget _counts() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+  Widget _buildStatsCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        // Fix: Updated withOpacity to withValues for latest Flutter
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Text('Total: ${controller.totalCount}'),
-          const Spacer(),
-          Text('P: ${controller.presentCount}',
-              style: const TextStyle(color: Colors.green)),
-          const SizedBox(width: 12),
-          Text('A: ${controller.absentCount}',
-              style: const TextStyle(color: Colors.red)),
+          _statItem('Total', controller.totalCount.toString(), Colors.black),
+          _statItem('Present', controller.presentCount.toString(), Colors.green),
+          _statItem('Absent', controller.absentCount.toString(), Colors.red),
         ],
       ),
     );
   }
 
-  Widget _pills() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+  Widget _statItem(String label, String value, Color color) {
+    return Column(
       children: [
-        _pill('all', 'All'),
-        _pill('present', 'Present'),
-        _pill('absent', 'Absent'),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 4),
+        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
       ],
     );
   }
 
-  Widget _pill(String key, String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: controller.activeFilter == key,
-        onSelected: (_) =>
-            controller.updateFilter(pill: key),
+  Widget _buildSmoothScrollPills() {
+    return SizedBox(
+      height: 50,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            _pillItem('all', 'All'),
+            const SizedBox(width: 10),
+            _pillItem('present', 'Present'),
+            const SizedBox(width: 10),
+            _pillItem('absent', 'Absent'),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _list() {
-    if (controller.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+  Widget _pillItem(String key, String label) {
+    bool isSelected = controller.activeFilter == key;
+    return GestureDetector(
+      onTap: () => controller.updateFilter(pill: key),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blue : Colors.grey[100],
+          borderRadius: BorderRadius.circular(25),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+      ),
+    );
+  }
 
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: TextField(
+        onChanged: (value) => controller.setSearchQuery(value),
+        decoration: InputDecoration(
+          hintText: 'Search roll number or name...',
+          prefixIcon: const Icon(Icons.search, color: Colors.grey),
+          filled: true,
+          fillColor: Colors.grey[100],
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList() {
+    if (controller.isLoading) return const Center(child: CircularProgressIndicator());
     final rows = controller.visibleRolls;
-
-    if (rows.isEmpty) {
-      return const Center(child: Text('No records'));
-    }
+    if (rows.isEmpty) return const Center(child: Text('No records found', style: TextStyle(color: Colors.grey)));
 
     return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 20),
       itemCount: rows.length,
       itemBuilder: (_, i) {
         final r = rows[i];
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: r.present ? Colors.green.shade100 : Colors.red.shade100,
-            child: Text(
-              r.roll.substring(r.roll.length > 2 ? r.roll.length - 2 : 0),
-              style: TextStyle(
-                color: r.present ? Colors.green.shade900 : Colors.red.shade900,
-                fontSize: 12,
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Colors.grey[100]!))),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(vertical: 4),
+            leading: CircleAvatar(
+              radius: 22,
+              backgroundColor: r.present ? Colors.green[50] : Colors.red[50],
+              child: Text(
+                r.roll.substring(r.roll.length - 2),
+                style: TextStyle(color: r.present ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),
-          ),
-          title: Text(r.name),
-          subtitle: Text(r.roll),
-          trailing: Text(
-            r.present ? 'Present' : 'Absent',
-            style: TextStyle(
-              color: r.present ? Colors.green : Colors.red,
-              fontWeight: FontWeight.w600,
+            title: Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            subtitle: Text(r.roll, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: r.present ? Colors.green[50] : Colors.red[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                r.present ? 'PRESENT' : 'ABSENT',
+                style: TextStyle(color: r.present ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 10),
+              ),
             ),
           ),
         );

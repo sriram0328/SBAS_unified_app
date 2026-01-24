@@ -19,7 +19,6 @@ class _FacultyShellState extends State<FacultyShell> {
   @override
   void initState() {
     super.initState();
-
     facultyId = widget.userData['facultyId'];
 
     _screens = [
@@ -32,17 +31,21 @@ class _FacultyShellState extends State<FacultyShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
+      // IndexedStack preserves the state of each screen
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
+        selectedItemColor: Colors.blueAccent,
+        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard), label: "Dashboard"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.schedule), label: "Timetable"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.fact_check), label: "Reports"),
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: "Dashboard"),
+          BottomNavigationBarItem(icon: Icon(Icons.calendar_today_rounded), label: "Timetable"),
+          BottomNavigationBarItem(icon: Icon(Icons.assessment_rounded), label: "Reports"),
         ],
       ),
     );

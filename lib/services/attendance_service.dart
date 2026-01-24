@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class AttendanceService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -33,7 +34,7 @@ class AttendanceService {
         };
       }).toList();
     } catch (e) {
-      print('Error fetching attendance: $e');
+      debugPrint('Error fetching attendance: $e');
       return [];
     }
   }
@@ -64,12 +65,12 @@ class AttendanceService {
         };
       }).toList();
     } catch (e) {
-      print('Error fetching attendance by date: $e');
+      debugPrint('Error fetching attendance by date: $e');
       return [];
     }
   }
 
-  /// Get attendance records for a date range (for weekly/monthly views)
+  /// Get attendance records for a date range
   Future<List<Map<String, dynamic>>> getAttendanceInRange({
     required String rollNo,
     required DateTime startDate,
@@ -104,7 +105,7 @@ class AttendanceService {
         };
       }).toList();
     } catch (e) {
-      print('Error fetching attendance range: $e');
+      debugPrint('Error fetching attendance range: $e');
       return [];
     }
   }
@@ -138,26 +139,32 @@ class AttendanceService {
 
       return subjectStats;
     } catch (e) {
-      print('Error calculating subject-wise attendance: $e');
+      debugPrint('Error calculating subject-wise attendance: $e');
       return {};
     }
   }
 
-  /// Create attendance record (for faculty use)
-  Future<void> createAttendance({
-    required String facultyId,
-    required int periodNumber,
-    required String subjectCode,
-    required String subjectName,
-    required String year,
-    required String branch,
-    required String section,
-    required List<String> enrolledStudentIds,
-    required List<String> presentStudentIds,
-  }) async {
+  /// ✅ Create attendance AND update summaries automatically (client-side)
+  /// No server needed - everything happens in Flutter!
+/// ✅ FIXED: Create attendance AND update summaries with proper nested structure
+/// ✅ UPDATED: Create attendance AND update summaries with period-level data
+Future<void> createAttendance({
+  required String facultyId,
+  required int periodNumber,
+  required String subjectCode,
+  required String subjectName,
+  required String year,
+  required String branch,
+  required String section,
+  required List<String> enrolledStudentIds,
+  required List<String> presentStudentIds,
+}) async {
+  try {
     final now = DateTime.now();
-    final dateStr = now.toIso8601String().split('T').first;
+    final dateStr = now.toIso8601String().split('T').first; // "2024-01-24"
+    final month = dateStr.substring(0, 7); // "2024-01"
 
+    // 1️⃣ Create attendance record
     await _db.collection('attendance').add({
       'date': dateStr,
       'facultyId': facultyId,
@@ -171,9 +178,106 @@ class AttendanceService {
       'presentStudentIds': presentStudentIds,
       'timestamp': FieldValue.serverTimestamp(),
     });
-  }
 
-  // ========== ADDED METHODS FOR NEW CONTROLLERS ==========
+    // 2️⃣ Update summaries with PERIOD-LEVEL data
+    final sanitizedSubject = subjectName.replaceAll(RegExp(r'[.\[\]*/]'), '_');
+    
+    for (final rollNo in enrolledStudentIds) {
+      final summaryRef = _db
+          .collection('attendance_summaries')
+          .doc('${rollNo}_$month');
+      
+      final isPresent = presentStudentIds.contains(rollNo);
+      
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(summaryRef);
+        
+        Map<String, dynamic> summaryData;
+        
+        if (!snapshot.exists) {
+          // Create new summary
+          summaryData = {
+            'rollNo': rollNo,
+            'month': month,
+            'overall': {
+              'totalClasses': 1,
+              'present': isPresent ? 1 : 0,
+            },
+            'bySubject': {
+              sanitizedSubject: {
+                'total': 1,
+                'present': isPresent ? 1 : 0,
+              }
+            },
+            'byDate': {
+              dateStr: {
+                'total': 1,
+                'present': isPresent ? 1 : 0,
+                'periods': {
+                  periodNumber.toString(): {
+                    'subject': subjectName,
+                    'subjectCode': subjectCode,
+                    'isPresent': isPresent,
+                  }
+                }
+              }
+            },
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
+        } else {
+          // Update existing summary
+          final existingData = snapshot.data() as Map<String, dynamic>;
+          
+          final overall = Map<String, dynamic>.from(existingData['overall'] ?? {});
+          final bySubject = Map<String, dynamic>.from(existingData['bySubject'] ?? {});
+          final byDate = Map<String, dynamic>.from(existingData['byDate'] ?? {});
+          
+          // Update overall
+          overall['totalClasses'] = (overall['totalClasses'] ?? 0) + 1;
+          overall['present'] = (overall['present'] ?? 0) + (isPresent ? 1 : 0);
+          
+          // Update bySubject
+          final subjectData = Map<String, dynamic>.from(bySubject[sanitizedSubject] ?? {});
+          subjectData['total'] = (subjectData['total'] ?? 0) + 1;
+          subjectData['present'] = (subjectData['present'] ?? 0) + (isPresent ? 1 : 0);
+          bySubject[sanitizedSubject] = subjectData;
+          
+          // Update byDate with period info
+          final dateData = Map<String, dynamic>.from(byDate[dateStr] ?? {});
+          dateData['total'] = (dateData['total'] ?? 0) + 1;
+          dateData['present'] = (dateData['present'] ?? 0) + (isPresent ? 1 : 0);
+          
+          // ✅ ADD PERIOD DATA
+          final periods = Map<String, dynamic>.from(dateData['periods'] ?? {});
+          periods[periodNumber.toString()] = {
+            'subject': subjectName,
+            'subjectCode': subjectCode,
+            'isPresent': isPresent,
+          };
+          dateData['periods'] = periods;
+          
+          byDate[dateStr] = dateData;
+          
+          summaryData = {
+            'rollNo': rollNo,
+            'month': month,
+            'overall': overall,
+            'bySubject': bySubject,
+            'byDate': byDate,
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
+        }
+        
+        transaction.set(summaryRef, summaryData);
+      });
+    }
+
+    debugPrint('✅ Attendance submitted with period data for ${enrolledStudentIds.length} students');
+  } catch (e) {
+    debugPrint('❌ Error submitting attendance: $e');
+    rethrow;
+  }
+}
 
   /// Get faculty name by ID
   Future<String> getFacultyName(String facultyId) async {
@@ -185,7 +289,7 @@ class AttendanceService {
         return doc.data()?['name'] ?? 'Unknown';
       }
     } catch (e) {
-      print('Error fetching faculty: $e');
+      debugPrint('Error fetching faculty: $e');
     }
     return 'Unknown';
   }
@@ -198,7 +302,7 @@ class AttendanceService {
         return doc.data();
       }
     } catch (e) {
-      print('Error fetching student info: $e');
+      debugPrint('Error fetching student info: $e');
     }
     return null;
   }
@@ -229,7 +333,7 @@ class AttendanceService {
 
       return totalClasses > 0 ? attendedClasses / totalClasses : 0.0;
     } catch (e) {
-      print('Error calculating overall attendance: $e');
+      debugPrint('Error calculating overall attendance: $e');
       return 0.0;
     }
   }
@@ -249,7 +353,7 @@ class PeriodTimeHelper {
   };
 
   static String getTime(int periodNumber) {
-    return periodTimings[periodNumber] ?? '${periodNumber}:00 AM';
+    return periodTimings[periodNumber] ?? '$periodNumber:00 AM';
   }
 
   static String getTimeShort(int periodNumber) {

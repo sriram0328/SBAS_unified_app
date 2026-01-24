@@ -5,20 +5,33 @@ import 'package:intl/intl.dart';
 
 class FacultyDashboardController extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final String facultyId; // AUTH UID / doc id
+  final String facultyId;
 
-  FacultyDashboardController({required this.facultyId});
+  FacultyDashboardController({required this.facultyId}) {
+    _initSyncListener(); 
+  }
 
   bool isLoading = true;
+  bool isSyncing = false; 
   String? errorMessage;
 
   String facultyName = '';
-  String facultyCode = ''; // FAC123
+  String facultyCode = ''; 
   String department = '';
   String todayLabel = '';
 
   int classesToday = 0;
   List<TodayClass> todayClasses = [];
+
+  // Listen for background sync status
+  void _initSyncListener() {
+    _db.snapshotsInSync().listen((_) async {
+      // Check for pending writes in any collection (e.g., attendance)
+      final snap = await _db.collection('attendance').snapshots().first;
+      isSyncing = snap.metadata.hasPendingWrites;
+      notifyListeners();
+    });
+  }
 
   Future<void> load() async {
     isLoading = true;
@@ -41,23 +54,13 @@ class FacultyDashboardController extends ChangeNotifier {
   Future<void> _loadFacultyProfile() async {
     try {
       final snap = await _db.collection('faculty').doc(facultyId).get();
-      
-      if (!snap.exists) {
-        throw Exception("Faculty profile not found");
-      }
-
-      final data = snap.data();
-      if (data == null) {
-        throw Exception("Faculty data is null");
-      }
-
+      if (!snap.exists) throw Exception("Profile not found");
+      final data = snap.data()!;
       facultyName = data['name'] ?? 'Unknown Faculty';
       facultyCode = data['facultyId'] ?? facultyId;
       department = data['department'] ?? '';
-      
-      debugPrint("✅ Faculty profile loaded: $facultyName ($facultyCode)");
     } catch (e) {
-      debugPrint("❌ Error loading faculty profile: $e");
+      debugPrint("❌ Profile error: $e");
       rethrow;
     }
   }
@@ -65,41 +68,15 @@ class FacultyDashboardController extends ChangeNotifier {
   Future<void> _loadTodayClasses() async {
     try {
       final day = DateFormat('EEEE').format(DateTime.now()).toLowerCase();
-      debugPrint("📅 Loading timetable for: $day");
-
-      final snap = await _db
-          .collection('faculty_timetables')
-          .doc(facultyId)
-          .get();
-
-      if (!snap.exists) {
-        debugPrint("ℹ️ No timetable document found for faculty: $facultyId");
-        todayClasses = [];
-        classesToday = 0;
-        return;
-      }
-
-      final data = snap.data();
-      if (data == null) {
-        debugPrint("ℹ️ Timetable data is null");
-        todayClasses = [];
-        classesToday = 0;
-        return;
-      }
-
-      final List? list = data[day] as List?;
-
-      if (list == null || list.isEmpty) {
-        debugPrint("ℹ️ No classes scheduled for $day");
-        todayClasses = [];
-        classesToday = 0;
-        return;
-      }
+      final snap = await _db.collection('faculty_timetables').doc(facultyId).get();
+      if (!snap.exists) return;
+      final List? list = snap.data()?[day] as List?;
+      if (list == null) return;
 
       todayClasses = list.map((e) {
         final m = Map<String, dynamic>.from(e);
         return TodayClass(
-          subject: m['subjectName'] ?? 'Unknown Subject',
+          subject: m['subjectName'] ?? 'Unknown',
           branch: m['branch'] ?? '',
           year: m['year'] ?? '',
           section: m['section'] ?? '',
@@ -108,38 +85,18 @@ class FacultyDashboardController extends ChangeNotifier {
           end: m['endTime'] ?? '',
         );
       }).toList();
-
       classesToday = todayClasses.length;
-      debugPrint("✅ Loaded ${todayClasses.length} classes for today");
     } catch (e) {
-      debugPrint("❌ Error loading today's classes: $e");
-      // Don't throw - just set empty state
       todayClasses = [];
       classesToday = 0;
     }
   }
 
-  void refresh() {
-    load();
-  }
+  void refresh() => load();
 }
 
 class TodayClass {
-  final String subject;
-  final String branch;
-  final String year;
-  final String section;
+  final String subject, branch, year, section, start, end;
   final int period;
-  final String start;
-  final String end;
-
-  TodayClass({
-    required this.subject,
-    required this.branch,
-    required this.year,
-    required this.section,
-    required this.period,
-    required this.start,
-    required this.end,
-  });
+  TodayClass({required this.subject, required this.branch, required this.year, required this.section, required this.period, required this.start, required this.end});
 }

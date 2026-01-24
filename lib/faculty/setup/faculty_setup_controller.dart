@@ -28,7 +28,7 @@ class FacultySetupController extends ChangeNotifier {
   String subjectCode = '';
   String subjectName = '';
 
-  final List<int> periods = [1,2,3,4,5,6,7,8];
+  final List<int> periods = [1,2,3,4,5,6,7];
 
   /// ✅ Roll numbers only
   List<String> enrolledStudentRollNos = [];

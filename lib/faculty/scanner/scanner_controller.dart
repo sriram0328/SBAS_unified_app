@@ -9,32 +9,39 @@ class ScannerController {
   bool isProcessing = false;
   bool showSuccessPopup = false;
   String lastScanned = '';
-  bool isFlashOn = false; // ✅ Added
+  bool isFlashOn = false; 
 
   ScannerController({
     required Set<String> enrolledStudentIds,
   }) : enrolledStudentIds = enrolledStudentIds;
 
-  int get presentCount => _presentStudentIds.length;
-  Set<String> get presentStudentIds => _presentStudentIds;
-  
-  // ✅ Added getters
   int get scannedCount => _presentStudentIds.length;
+  Set<String> get presentStudentIds => _presentStudentIds;
   String get lastScannedText => lastScanned;
 
-  // ✅ Added flash toggle
   void toggleFlash() {
     isFlashOn = !isFlashOn;
   }
 
-  /// 🔥 SCAN LOGIC
+  /// 🔥 SCAN LOGIC - Stays initialized to accept new IDs
   Future<void> onStudentScanned({
     required String studentUid,
     required VoidCallback refreshUI,
     required VoidCallback onInvalidStudent,
   }) async {
     if (isProcessing) return;
-    if (_presentStudentIds.contains(studentUid)) return;
+    
+    // If already scanned, just show the popup again to confirm they are present
+    if (_presentStudentIds.contains(studentUid)) {
+       lastScanned = "Already Scanned: $studentUid";
+       showSuccessPopup = true;
+       refreshUI();
+       Timer(const Duration(seconds: 2), () {
+          showSuccessPopup = false;
+          refreshUI();
+       });
+       return;
+    }
 
     // ❌ NOT ENROLLED
     if (!enrolledStudentIds.contains(studentUid)) {
@@ -54,12 +61,5 @@ class ScannerController {
       isProcessing = false;
       refreshUI();
     });
-  }
-
-  void reset() {
-    _presentStudentIds.clear();
-    showSuccessPopup = false;
-    lastScanned = '';
-    isProcessing = false;
   }
 }

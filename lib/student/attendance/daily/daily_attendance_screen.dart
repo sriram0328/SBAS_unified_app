@@ -1,6 +1,7 @@
+// lib/student/attendance/daily/daily_attendance_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'daily_attendance_controller.dart';
+import '../controllers/daily_summary_controller.dart';
 
 class DailyAttendanceView extends StatefulWidget {
   const DailyAttendanceView({super.key});
@@ -10,7 +11,7 @@ class DailyAttendanceView extends StatefulWidget {
 }
 
 class _DailyAttendanceViewState extends State<DailyAttendanceView> {
-  final DailyAttendanceController _controller = DailyAttendanceController();
+  final DailySummaryController _controller = DailySummaryController();
 
   @override
   void initState() {
@@ -42,18 +43,35 @@ class _DailyAttendanceViewState extends State<DailyAttendanceView> {
             date: _controller.selectedDate,
             presentCount: _controller.presentCount,
             absentCount: _controller.absentCount,
+            totalCount: _controller.totalCount,
             onDateTap: () => _selectDate(context),
           ),
           const SizedBox(height: 20),
-          if (_controller.periods.isEmpty)
+          
+          if (_controller.totalCount == 0)
             _EmptyState()
-          else
-            ..._controller.periods.map((period) => _PeriodTile(
-                  period.time,
-                  period.subject,
-                  period.faculty,
-                  period.isPresent,
-                )),
+          else ...[
+            _AttendanceSummaryCard(
+              presentCount: _controller.presentCount,
+              absentCount: _controller.absentCount,
+              totalCount: _controller.totalCount,
+            ),
+            
+            // ✅ Period Cards Section
+            if (_controller.periods.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const Text(
+                'Period Details',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ..._controller.periods.map((period) => _PeriodCard(period: period)),
+            ],
+          ],
         ],
       ),
     );
@@ -72,16 +90,138 @@ class _DailyAttendanceViewState extends State<DailyAttendanceView> {
   }
 }
 
+// ✅ NEW: Period Card Widget
+class _PeriodCard extends StatelessWidget {
+  final PeriodAttendance period;
+
+  const _PeriodCard({required this.period});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: period.statusColor.withValues(alpha: 0.3),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Period Number & Time
+          Container(
+            width: 60,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: period.statusColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  'P${period.periodNumber}',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: period.statusColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  period.time.split(' ')[0], // Just time without AM/PM
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: period.statusColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(width: 16),
+          
+          // Subject Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  period.subject,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  period.subjectCode,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Status Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: period.statusColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  period.isPresent ? Icons.check_circle : Icons.cancel,
+                  size: 16,
+                  color: period.statusColor,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  period.statusText,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: period.statusColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DaySummary extends StatelessWidget {
   final DateTime date;
   final int presentCount;
   final int absentCount;
+  final int totalCount;
   final VoidCallback onDateTap;
 
   const _DaySummary({
     required this.date,
     required this.presentCount,
     required this.absentCount,
+    required this.totalCount,
     required this.onDateTap,
   });
 
@@ -126,6 +266,8 @@ class _DaySummary extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
+                _Chip("$totalCount Classes", Colors.blue),
+                const SizedBox(width: 12),
                 _Chip("$presentCount Present", Colors.green),
                 const SizedBox(width: 12),
                 _Chip("$absentCount Absent", Colors.red),
@@ -164,21 +306,23 @@ class _Chip extends StatelessWidget {
   }
 }
 
-class _PeriodTile extends StatelessWidget {
-  final String time;
-  final String subject;
-  final String faculty;
-  final bool present;
+class _AttendanceSummaryCard extends StatelessWidget {
+  final int presentCount;
+  final int absentCount;
+  final int totalCount;
 
-  const _PeriodTile(this.time, this.subject, this.faculty, this.present);
+  const _AttendanceSummaryCard({
+    required this.presentCount,
+    required this.absentCount,
+    required this.totalCount,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = present ? Colors.green : Colors.red;
+    final percentage = totalCount > 0 ? (presentCount / totalCount * 100) : 0.0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -190,59 +334,89 @@ class _PeriodTile extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          const Text(
+            'Attendance Summary',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: 120,
+            height: 120,
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                Text(
-                  time,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
+                SizedBox(
+                  width: 120,
+                  height: 120,
+                  child: CircularProgressIndicator(
+                    value: percentage / 100,
+                    strokeWidth: 10,
+                    backgroundColor: Colors.grey.shade300,
+                    valueColor: AlwaysStoppedAnimation(
+                      percentage >= 75 ? Colors.green : 
+                      percentage >= 65 ? Colors.orange : 
+                      Colors.red,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
                 Text(
-                  subject,
+                  '${percentage.toInt()}%',
                   style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  faculty,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              present ? "PRESENT" : "ABSENT",
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-                letterSpacing: 0.5,
-              ),
-            ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _StatItem('Total', totalCount.toString(), Colors.blue),
+              _StatItem('Present', presentCount.toString(), Colors.green),
+              _StatItem('Absent', absentCount.toString(), Colors.red),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _StatItem(this.label, this.value, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+        ),
+      ],
     );
   }
 }

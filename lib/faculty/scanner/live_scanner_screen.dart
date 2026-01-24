@@ -1,13 +1,12 @@
-// lib/faculty/scanner/live_scanner_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import '../../core/session.dart';
 import 'scanner_controller.dart';
 import '../../services/attendance_service.dart';
 
 class LiveScannerScreen extends StatefulWidget {
   final String facultyId;
-  final int periodNumber; // ✅ FIXED
+  final int periodNumber;
   final String year;
   final String branch;
   final String section;
@@ -18,7 +17,7 @@ class LiveScannerScreen extends StatefulWidget {
   const LiveScannerScreen({
     super.key,
     required this.facultyId,
-    required this.periodNumber, // ✅ FIXED
+    required this.periodNumber,
     required this.year,
     required this.branch,
     required this.section,
@@ -39,7 +38,6 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
   @override
   void initState() {
     super.initState();
-
     controller = ScannerController(
       enrolledStudentIds: widget.enrolledStudentIds.toSet(),
     );
@@ -48,6 +46,7 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
       facing: CameraFacing.back,
       detectionSpeed: DetectionSpeed.normal,
       torchEnabled: false,
+      formats: [BarcodeFormat.all],
     );
   }
 
@@ -55,14 +54,127 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
     if (mounted) setState(() {});
   }
 
-  void _showInvalidStudentPopup() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Student not enrolled in this class'),
-        backgroundColor: Colors.red,
-        duration: Duration(seconds: 2),
+  void _showAttendanceReport() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      builder: (context) {
+        final presentList = controller.presentStudentIds.toList()..sort();
+        
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) => Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    const Text("Attendance Report", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    Text("${presentList.length} Scanned", 
+                      style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: presentList.length,
+                  itemBuilder: (context, i) => ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.blue[50], 
+                      child: const Icon(Icons.person, color: Colors.blueAccent, size: 20)
+                    ),
+                    title: Text(presentList[i], style: const TextStyle(fontWeight: FontWeight.w600)),
+                    trailing: const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () => Navigator.pop(context), 
+                        child: const Text("Rescan More"),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2962FF),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(context); 
+                          _handleSubmit(); 
+                        },
+                        child: const Text("Submit", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
+  }
+
+  // OPTIMIZED SUBMISSION logic to cut down wait time
+// lib/faculty/scanner/live_scanner_screen.dart
+
+  Future<void> _handleSubmit() async {
+    // 1. Set processing to true to show loading briefly and prevent double-taps
+    setState(() { 
+      controller.isProcessing = true; 
+    });
+
+    // 2. Trigger the database call WITHOUT 'await'
+    // Because offline persistence is ON, Firestore caches this locally and 
+    // returns a successful 'Future' immediately in its internal logic.
+    _attendanceService.createAttendance(
+      facultyId: widget.facultyId,
+      periodNumber: widget.periodNumber,
+      year: widget.year,
+      branch: widget.branch,
+      section: widget.section,
+      subjectCode: widget.subjectCode,
+      subjectName: widget.subjectName,
+      enrolledStudentIds: widget.enrolledStudentIds,
+      presentStudentIds: controller.presentStudentIds.toList(),
+    );
+
+    // 3. Stop the camera hardware
+    cameraController.stop();
+
+    // 4. Exit the screen immediately
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Attendance Saved (Syncing in background)'),
+          backgroundColor: Colors.blueAccent,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      Navigator.of(context).pop(); 
+    }
   }
 
   @override
@@ -74,120 +186,112 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B1220),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: MobileScanner(
-                controller: cameraController,
-                onDetect: (capture) {
-                  if (capture.barcodes.isEmpty) return;
-                  final uid = capture.barcodes.first.rawValue;
-                  if (uid == null || uid.isEmpty) return;
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: cameraController,
+            onDetect: (capture) {
+              if (capture.barcodes.isEmpty) return;
+              final uid = capture.barcodes.first.rawValue;
+              if (uid == null || uid.isEmpty) return;
+              
+              if (!controller.presentStudentIds.contains(uid)) {
+                 HapticFeedback.lightImpact();
+              }
 
-                  controller.onStudentScanned(
-                    studentUid: uid,
-                    refreshUI: _refresh,
-                    onInvalidStudent: _showInvalidStudentPopup,
-                  );
-                },
+              controller.onStudentScanned(
+                studentUid: uid, 
+                refreshUI: _refresh, 
+                onInvalidStudent: () => HapticFeedback.vibrate()
+              );
+            },
+          ),
+          
+          Positioned.fill(child: _ScannerOverlayPainter()),
+
+          Positioned(
+            top: 0, left: 0, right: 0,
+            child: Container(
+              padding: const EdgeInsets.only(top: 50, bottom: 20, left: 16, right: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.black.withValues(alpha: 0.8), Colors.transparent]
+                )
+              ),
+              child: Row(
+                children: [
+                  IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                  const Spacer(),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(widget.subjectName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('${widget.branch}-${widget.section} • P${widget.periodNumber}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: Icon(controller.isFlashOn ? Icons.flash_on : Icons.flash_off, color: Colors.white),
+                    onPressed: () { controller.toggleFlash(); cameraController.toggleTorch(); _refresh(); }
+                  ),
+                ],
               ),
             ),
+          ),
 
-            /// HEADER
+          if (controller.showSuccessPopup)
             Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
+              left: 40, right: 40, bottom: 130,
               child: Container(
-                color: Colors.black54,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    Expanded(
-                      child: Text(
-                        widget.subjectName,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        controller.isFlashOn
-                            ? Icons.flash_on
-                            : Icons.flash_off,
-                        color: Colors.white,
-                      ),
-                      onPressed: () {
-                        controller.toggleFlash();
-                        cameraController.toggleTorch();
-                        _refresh();
-                      },
-                    ),
-                  ],
-                ),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(30)),
+                child: Text(controller.lastScannedText, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
 
-            /// SUCCESS POPUP
-            if (controller.showSuccessPopup)
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 140,
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    controller.lastScannedText,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-
-            /// SUBMIT
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 40,
+          Positioned(
+            left: 24, right: 24, bottom: 40,
+            child: SizedBox(
+              height: 60,
               child: ElevatedButton(
-                onPressed: controller.scannedCount == 0
-                    ? null
-                    : () async {
-                        final navigator = Navigator.of(context);
-
-                        await _attendanceService.createAttendance(
-                          facultyId: Session.facultyId,
-                          periodNumber: widget.periodNumber, // ✅ FIXED
-                          year: widget.year,
-                          branch: widget.branch,
-                          section: widget.section,
-                          subjectCode: widget.subjectCode,
-                          subjectName: widget.subjectName,
-                          enrolledStudentIds: widget.enrolledStudentIds,
-                          presentStudentIds:
-                              controller.presentStudentIds.toList(),
-                        );
-
-                        navigator.pop();
-                      },
-                child: Text(
-                  'Submit Attendance (${controller.scannedCount})',
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2962FF),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 ),
+                onPressed: controller.scannedCount == 0 || controller.isProcessing ? null : _showAttendanceReport,
+                child: controller.isProcessing 
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : Text('Review & Submit (${controller.scannedCount})', 
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _ScannerOverlayPainter extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    double size = MediaQuery.of(context).size.width * 0.7;
+    return Stack(
+      children: [
+        ColorFiltered(
+          colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.6), BlendMode.srcOut),
+          child: Stack(
+            children: [
+              Container(decoration: const BoxDecoration(color: Colors.black, backgroundBlendMode: BlendMode.dstOut)),
+              Align(alignment: Alignment.center, child: Container(width: size, height: size * 0.6, decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(20)))),
+            ],
+          ),
+        ),
+        Align(alignment: Alignment.center, child: Container(width: size, height: size * 0.6, decoration: BoxDecoration(border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2), borderRadius: BorderRadius.circular(20)))),
+      ],
     );
   }
 }

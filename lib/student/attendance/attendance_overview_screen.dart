@@ -1,7 +1,7 @@
-// attendance_overview_screen.dart
+// lib/student/attendance/attendance_overview_screen.dart
 import 'package:flutter/material.dart';
 import 'attendance_history_screen.dart';
-import 'attendance_overview_controller.dart';
+import 'controllers/attendance_summary_controller.dart';
 
 class AttendanceOverviewScreen extends StatefulWidget {
   const AttendanceOverviewScreen({super.key});
@@ -12,12 +12,12 @@ class AttendanceOverviewScreen extends StatefulWidget {
 }
 
 class _AttendanceOverviewScreenState extends State<AttendanceOverviewScreen> {
-  late final AttendanceOverviewController _controller;
+  late final AttendanceSummaryController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AttendanceOverviewController();
+    _controller = AttendanceSummaryController();
     _controller.addListener(() {
       if (mounted) setState(() {});
     });
@@ -72,35 +72,97 @@ class _AttendanceOverviewScreenState extends State<AttendanceOverviewScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Overall Attendance
-                    Center(
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(
-                            width: 140,
-                            height: 140,
-                            child: CircularProgressIndicator(
-                              value: _controller.overallPercentage,
-                              strokeWidth: 10,
-                              backgroundColor: Colors.grey.shade300,
-                              valueColor: AlwaysStoppedAnimation(
-                                _getColorForPercentage(
-                                    _controller.overallPercentage),
-                              ),
-                            ),
+                    // Month Label
+                    if (_controller.currentMonth.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          _controller.currentMonth,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
                           ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
+                        ),
+                      ),
+
+                    // Overall Attendance Card
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          // Circular Progress
+                          Stack(
+                            alignment: Alignment.center,
                             children: [
-                              Text(
-                                "${(_controller.overallPercentage * 100).toInt()}%",
-                                style: const TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
+                              SizedBox(
+                                width: 140,
+                                height: 140,
+                                child: CircularProgressIndicator(
+                                  value: _controller.overallPercentage / 100,
+                                  strokeWidth: 12,
+                                  backgroundColor: Colors.grey.shade200,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    _getColorForPercentage(
+                                        _controller.overallPercentage),
+                                  ),
                                 ),
                               ),
-                              const Text("Overall"),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    "${_controller.overallPercentage.toInt()}%",
+                                    style: const TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "Overall",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Stats Row
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _StatColumn(
+                                label: "Total",
+                                value: "${_controller.totalClasses}",
+                                color: Colors.blue,
+                              ),
+                              _StatColumn(
+                                label: "Present",
+                                value: "${_controller.presentClasses}",
+                                color: Colors.green,
+                              ),
+                              _StatColumn(
+                                label: "Absent",
+                                value: "${_controller.absentClasses}",
+                                color: Colors.red,
+                              ),
                             ],
                           ),
                         ],
@@ -109,12 +171,26 @@ class _AttendanceOverviewScreenState extends State<AttendanceOverviewScreen> {
 
                     const SizedBox(height: 24),
 
-                    const Text(
-                      "Subjects",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
+                    // Subject Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Subjects",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 18,
+                          ),
+                        ),
+                        if (_controller.subjects.isNotEmpty)
+                          Text(
+                            "${_controller.subjects.length} subjects",
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                      ],
                     ),
 
                     const SizedBox(height: 12),
@@ -122,11 +198,8 @@ class _AttendanceOverviewScreenState extends State<AttendanceOverviewScreen> {
                     if (_controller.subjects.isEmpty)
                       _EmptyState()
                     else
-                      ..._controller.subjects.map((subject) => _subject(
-                            subject.subject,
-                            "${subject.attended} / ${subject.total}",
-                            subject.percentage,
-                            subject.color,
+                      ..._controller.subjects.map((subject) => _SubjectCard(
+                            subject: subject,
                           )),
 
                     const SizedBox(height: 16),
@@ -138,23 +211,68 @@ class _AttendanceOverviewScreenState extends State<AttendanceOverviewScreen> {
   }
 
   Color _getColorForPercentage(double percentage) {
-    if (percentage >= 0.75) return Colors.green;
-    if (percentage >= 0.65) return Colors.orange;
+    if (percentage >= 75) return Colors.green;
+    if (percentage >= 65) return Colors.orange;
     return Colors.red;
   }
+}
 
-  static Widget _subject(
-    String title,
-    String text,
-    double value,
-    Color color,
-  ) {
+class _StatColumn extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _StatColumn({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey[600],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SubjectCard extends StatelessWidget {
+  final SubjectSummary subject;
+
+  const _SubjectCard({required this.subject});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,33 +282,58 @@ class _AttendanceOverviewScreenState extends State<AttendanceOverviewScreen> {
             children: [
               Expanded(
                 child: Text(
-                  title,
+                  subject.name,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
+                    fontSize: 15,
                   ),
                 ),
               ),
-              Text(
-                "${(value * 100).toInt()}%",
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: subject.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "${subject.percentage.toInt()}%",
+                  style: TextStyle(
+                    color: subject.color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            text,
-            style: const TextStyle(color: Colors.grey),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
+                "${subject.present} / ${subject.total} classes",
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 13,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                "${subject.absent} absent",
+                style: TextStyle(
+                  color: Colors.red[400],
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           LinearProgressIndicator(
-            value: value,
+            value: subject.percentage / 100,
             minHeight: 6,
             borderRadius: BorderRadius.circular(6),
-            backgroundColor: Colors.grey.shade300,
-            valueColor: AlwaysStoppedAnimation(color),
+            backgroundColor: Colors.grey.shade200,
+            valueColor: AlwaysStoppedAnimation(subject.color),
           ),
         ],
       ),

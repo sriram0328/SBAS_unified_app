@@ -11,15 +11,14 @@ class AttendanceReportController extends ChangeNotifier {
   bool isLoading = false;
   String? errorMessage;
 
-  // Filters
-  String? date; // yyyy-MM-dd
+  String? date; 
   String? subject;
   String? branch;
   String? year;
   String? section;
   int? period;
+  String searchQuery = ""; 
 
-  // Options
   final List<String> dates = [];
   final List<String> subjects = [];
   final List<String> branches = [];
@@ -27,10 +26,8 @@ class AttendanceReportController extends ChangeNotifier {
   final List<String> sections = [];
   final List<int> periods = [];
 
-  // Data
   final List<_Row> _allRows = [];
-
-  // Pills
+  final Map<String, String> _studentNameCache = {}; 
   String activeFilter = 'all';
 
   int totalCount = 0;
@@ -38,83 +35,62 @@ class AttendanceReportController extends ChangeNotifier {
   int absentCount = 0;
 
   List<_Row> get visibleRolls {
-    if (activeFilter == 'present') {
-      return _allRows.where((e) => e.present).toList();
+    List<_Row> filtered = _allRows;
+    if (activeFilter == 'present') filtered = filtered.where((e) => e.present).toList();
+    else if (activeFilter == 'absent') filtered = filtered.where((e) => !e.present).toList();
+
+    if (searchQuery.isNotEmpty) {
+      filtered = filtered.where((e) => 
+        e.name.toLowerCase().contains(searchQuery.toLowerCase()) || 
+        e.roll.toLowerCase().contains(searchQuery.toLowerCase())
+      ).toList();
     }
-    if (activeFilter == 'absent') {
-      return _allRows.where((e) => !e.present).toList();
-    }
-    return _allRows;
+    return filtered;
   }
 
-  // ---------------- INIT ----------------
+  void setSearchQuery(String query) {
+    searchQuery = query;
+    notifyListeners();
+  }
+
   Future<void> initialize() async {
     try {
       isInitializing = true;
       notifyListeners();
-
-      final snap = await _db
-          .collection('attendance')
-          .where('facultyId', isEqualTo: facultyId)
-          .get();
-
-      if (snap.docs.isEmpty) {
-        isInitializing = false;
-        notifyListeners();
-        return;
-      }
+      final snap = await _db.collection('attendance').where('facultyId', isEqualTo: facultyId).get();
+      if (snap.docs.isEmpty) { isInitializing = false; notifyListeners(); return; }
 
       for (final d in snap.docs) {
         final m = d.data();
-
         final ts = m['timestamp'];
-        if (ts is Timestamp) {
-          final d =
-              ts.toDate().toIso8601String().substring(0, 10);
-          _addIfNew(dates, d);
-        }
-
+        if (ts is Timestamp) _addIfNew(dates, ts.toDate().toIso8601String().substring(0, 10));
         final code = m['subjectCode'];
         final name = m['subjectName'];
-        if (code != null && name != null) {
-          _addIfNew(subjects, '$name ($code)');
-        }
-
+        if (code != null && name != null) _addIfNew(subjects, '$name ($code)');
         _addIfNew(branches, m['branch']);
         _addIfNew(years, m['year']);
         _addIfNew(sections, m['section']);
-
         final p = m['periodNumber'];
         if (p is int && !periods.contains(p)) periods.add(p);
       }
 
-      dates.sort();
-      subjects.sort();
-      branches.sort();
-      years.sort();
-      sections.sort();
+      for (var list in [dates, subjects, branches, years, sections]) { list.sort(); }
       periods.sort();
 
-      date = dates.first;
-      subject = subjects.first;
-      branch = branches.first;
-      year = years.first;
-      section = sections.first;
-      period = periods.first;
+      date = dates.isNotEmpty ? dates.first : null;
+      subject = subjects.isNotEmpty ? subjects.first : null;
+      branch = branches.isNotEmpty ? branches.first : null;
+      year = years.isNotEmpty ? years.first : null;
+      section = sections.isNotEmpty ? sections.first : null;
+      period = periods.isNotEmpty ? periods.first : null;
 
       await refresh();
-    } catch (e) {
-      errorMessage = e.toString();
-    } finally {
-      isInitializing = false;
-      notifyListeners();
-    }
+    } catch (e) { errorMessage = e.toString(); } 
+    finally { isInitializing = false; notifyListeners(); }
   }
 
   void _addIfNew(List<String> list, dynamic v) {
-    if (v != null && v is String && !list.contains(v)) {
-      list.add(v);
-    }
+    if (v != null && v is String && !list.contains(v)) list.add(v);
   }
 
   String _extractSubjectCode(String label) {
@@ -122,210 +98,93 @@ class AttendanceReportController extends ChangeNotifier {
     return match?.group(1) ?? label;
   }
 
-  // ---------------- REFRESH (FIXED) ----------------
   Future<void> refresh() async {
-    if (date == null ||
-        subject == null ||
-        branch == null ||
-        year == null ||
-        section == null ||
-        period == null) {
-      return;
-    }
-
+    if (date == null || subject == null || branch == null || year == null || section == null || period == null) return;
     try {
-      isLoading = true;
-      _allRows.clear();
-      notifyListeners();
+      isLoading = true; _allRows.clear(); notifyListeners();
+      final startUtc = DateTime.parse(date!).toUtc();
+      final endUtc = startUtc.add(const Duration(days: 1));
 
-      final startUtc =
-          DateTime.parse(date!).toUtc();
-      final endUtc =
-          startUtc.add(const Duration(days: 1));
-
-      final q = await _db
-          .collection('attendance')
+      final q = await _db.collection('attendance')
           .where('facultyId', isEqualTo: facultyId)
           .where('branch', isEqualTo: branch)
           .where('year', isEqualTo: year)
           .where('section', isEqualTo: section)
           .where('periodNumber', isEqualTo: period)
-          .where(
-            'subjectCode',
-            isEqualTo: _extractSubjectCode(subject!),
-          )
-          .where(
-            'timestamp',
-            isGreaterThanOrEqualTo:
-                Timestamp.fromDate(startUtc),
-          )
-          .where(
-            'timestamp',
-            isLessThan:
-                Timestamp.fromDate(endUtc),
-          )
+          .where('subjectCode', isEqualTo: _extractSubjectCode(subject!))
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startUtc))
+          .where('timestamp', isLessThan: Timestamp.fromDate(endUtc))
           .get();
 
-      if (q.docs.isEmpty) {
-        _resetCounts();
-        return;
-      }
+      if (q.docs.isEmpty) { _resetCounts(); return; }
 
       final Set<String> enrolled = {};
       final Set<String> present = {};
 
       for (final d in q.docs) {
         final m = d.data();
-
-        enrolled.addAll(
-          List<String>.from(m['enrolledStudentIds'] ?? []),
-        );
-
-        present.addAll(
-          List<String>.from(m['presentStudentIds'] ?? []),
-        );
+        enrolled.addAll(List<String>.from(m['enrolledStudentIds'] ?? []));
+        present.addAll(List<String>.from(m['presentStudentIds'] ?? []));
       }
 
-      // Fetch student details from students collection
-      final Map<String, String> studentNames = {};
+      final List<String> enrolledList = enrolled.toList();
+      final List<String> rollsToFetch = enrolledList.where((id) => !_studentNameCache.containsKey(id)).toList();
       
-      for (final id in enrolled) {
-        try {
-          // Query by rollno field instead of document ID
-          final studentQuery = await _db
-              .collection('students')
-              .where('rollno', isEqualTo: id)
-              .limit(1)
-              .get();
-          
-          if (studentQuery.docs.isNotEmpty) {
-            final data = studentQuery.docs.first.data();
-            final studentName = data['name'];
-            
-            if (studentName != null && studentName.isNotEmpty) {
-              studentNames[id] = studentName;
-            } else {
-              studentNames[id] = id;
-            }
-          } else {
-            studentNames[id] = id;
-          }
-        } catch (e) {
-          print('Error fetching student $id: $e');
-          studentNames[id] = id;
+      for (var i = 0; i < rollsToFetch.length; i += 30) {
+        final end = (i + 30 < rollsToFetch.length) ? i + 30 : rollsToFetch.length;
+        final batch = rollsToFetch.sublist(i, end);
+        final studentSnap = await _db.collection('students').where('rollno', whereIn: batch).get();
+        for (final doc in studentSnap.docs) {
+          final data = doc.data();
+          _studentNameCache[data['rollno']] = data['name'] ?? data['rollno'];
         }
       }
 
-      for (final id in enrolled) {
-        _allRows.add(
-          _Row(
-            roll: id,
-            name: studentNames[id] ?? id,
-            present: present.contains(id),
-          ),
-        );
+      for (final id in enrolledList) {
+        _allRows.add(_Row(roll: id, name: _studentNameCache[id] ?? id, present: present.contains(id)));
       }
 
-      // Sort by roll number in ascending order
       _allRows.sort((a, b) => a.roll.compareTo(b.roll));
-
       totalCount = enrolled.length;
       presentCount = present.length;
       absentCount = totalCount - presentCount;
-    } catch (e) {
-      errorMessage = e.toString();
-    } finally {
-      isLoading = false;
-      notifyListeners();
+    } catch (e) { errorMessage = e.toString(); } 
+    finally { isLoading = false; notifyListeners(); }
+  }
+
+  void _resetCounts() { totalCount = 0; presentCount = 0; absentCount = 0; }
+
+  void updateFilter({String? dateValue, String? subjectValue, String? branchValue, String? yearValue, String? sectionValue, int? periodValue, String? pill}) {
+    if (dateValue != null) {
+      date = dateValue;
+      if (!dates.contains(dateValue)) { dates.add(dateValue); dates.sort(); }
     }
-  }
-
-  void _resetCounts() {
-    totalCount = 0;
-    presentCount = 0;
-    absentCount = 0;
-  }
-
-  // ---------------- FILTER UPDATE ----------------
-  void updateFilter({
-    String? dateValue,
-    String? subjectValue,
-    String? branchValue,
-    String? yearValue,
-    String? sectionValue,
-    int? periodValue,
-    String? pill,
-  }) {
-    if (dateValue != null) date = dateValue;
     if (subjectValue != null) subject = subjectValue;
     if (branchValue != null) branch = branchValue;
     if (yearValue != null) year = yearValue;
     if (sectionValue != null) section = sectionValue;
     if (periodValue != null) period = periodValue;
     if (pill != null) activeFilter = pill;
-
     refresh();
   }
 
-  // ---------------- DOWNLOAD CSV ----------------
   String generateCSV() {
     final buffer = StringBuffer();
-    
-    // Main Heading
-    final dateFormatted = date != null 
-        ? DateTime.parse(date!).toLocal().toString().split(' ')[0].split('-').reversed.join('-')
-        : '';
-    buffer.writeln('$year $branch-$section $dateFormatted');
-    buffer.writeln('Subject: $subject');
-    buffer.writeln('Period: $period');
-    buffer.writeln('');
-    
-    // Header
+    final dFmt = date?.split('-').reversed.join('-') ?? '';
+    buffer.writeln('$year $branch-$section $dFmt\nSubject: $subject\nPeriod: $period\n');
     buffer.writeln('Roll Number,Name,Status');
-    
-    // Get the rows based on active filter
-    final List<_Row> rowsToExport;
-    if (activeFilter == 'present') {
-      rowsToExport = _allRows.where((e) => e.present).toList();
-    } else if (activeFilter == 'absent') {
-      rowsToExport = _allRows.where((e) => !e.present).toList();
-    } else {
-      rowsToExport = _allRows;
-    }
-    
-    // Data rows
-    for (final row in rowsToExport) {
-      buffer.writeln('${row.roll},${row.name},${row.present ? 'Present' : 'Absent'}');
-    }
-    
-    buffer.writeln('');
-    buffer.writeln('Total: $totalCount, Present: $presentCount, Absent: $absentCount');
-    
+    for (final row in visibleRolls) { buffer.writeln('${row.roll},${row.name},${row.present ? 'Present' : 'Absent'}'); }
+    buffer.writeln('\nTotal: $totalCount, Present: $presentCount, Absent: $absentCount');
     return buffer.toString();
   }
 
-  // ---------------- DOWNLOAD PDF ----------------
-  String getReportHeading() {
-    final dateFormatted = date != null 
-        ? DateTime.parse(date!).toLocal().toString().split(' ')[0].split('-').reversed.join('-')
-        : '';
-    return '$year $branch-$section $dateFormatted';
-  }
-
-  String getSubjectInfo() {
-    return 'Subject: $subject | Period: $period';
-  }
+  String getReportHeading() => '$year $branch-$section ${date?.split('-').reversed.join('-') ?? ''}';
+  String getSubjectInfo() => 'Subject: $subject | Period: $period';
 }
 
-// ---------------- MODEL ----------------
 class _Row {
   final String roll;
   final String name;
   final bool present;
-
-  _Row({
-    required this.roll,
-    required this.name,
-    required this.present,
-  });
+  _Row({required this.roll, required this.name, required this.present});
 }

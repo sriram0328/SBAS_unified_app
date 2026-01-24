@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'monthly_attendance_controller.dart';
+import '../controllers/monthly_summary_controller.dart';
 
 class MonthlyAttendanceView extends StatefulWidget {
   const MonthlyAttendanceView({super.key});
@@ -9,7 +9,7 @@ class MonthlyAttendanceView extends StatefulWidget {
 }
 
 class _MonthlyAttendanceViewState extends State<MonthlyAttendanceView> {
-  final MonthlyAttendanceController _controller = MonthlyAttendanceController();
+  final MonthlySummaryController _controller = MonthlySummaryController();
 
   @override
   void initState() {

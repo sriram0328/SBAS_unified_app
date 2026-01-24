@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'auth/login/login_screen.dart';
-//import 'assets/images/sbas_logo.png';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -12,7 +11,6 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
 
@@ -33,10 +31,12 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward();
 
     Timer(const Duration(seconds: 3), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
     });
   }
 
@@ -49,39 +49,42 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      // Matching the dark navy background of your new barcode logo
+      backgroundColor: const Color(0xFF0F0C29), 
       body: Center(
         child: FadeTransition(
           opacity: _fadeAnimation,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Updated to your new logo asset
               Image.asset(
                 'assets/icon/app_icon.png',
-                width: 120,
-                height: 120,
+                width: 180, // Increased size slightly for better visibility
+                height: 180,
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 30),
 
               const Text(
                 'SBAS Attendance',
                 style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                  letterSpacing: 0.5,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white, // Changed to white for dark theme
+                  letterSpacing: 1.2,
                 ),
               ),
 
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
 
               const Text(
                 'Smart Barcode Based Attendance System',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
+                  fontSize: 14,
+                  color: Colors.white70, // Subtle white for the subtitle
+                  letterSpacing: 0.5,
                 ),
               ),
             ],

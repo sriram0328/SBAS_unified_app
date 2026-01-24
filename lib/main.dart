@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sbas_attendance/auth/login/login_screen.dart';
 import 'firebase_options.dart';
-
-import 'splashscreen.dart'; // 
+import 'splashscreen.dart'; 
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Enable Offline Persistence
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
   runApp(const MyApp());
@@ -27,13 +33,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-
-      // START WITH SPLASH, NOT LOGIN
       home: const SplashScreen(),
-      //home: const RoleRouter(),  if changed to role router after splash; if kept auto login 
-
-
-      // Routes (optional but fine)
       routes: {
         '/login': (context) => const LoginScreen(),
       },
