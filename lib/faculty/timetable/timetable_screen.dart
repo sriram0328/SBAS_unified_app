@@ -55,7 +55,7 @@ class _TimetableView extends StatelessWidget {
                     return _DaySection(
                       day: day,
                       periods: periods,
-                      isCurrentDay: DateFormat('EEEE').format(DateTime.now()) == day,
+                      isCurrentDay: DateFormat('EEEE').format(DateTime.now()).toLowerCase() == day,
                     );
                   },
                 ),
@@ -146,7 +146,10 @@ class _TimelinePeriodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = isOngoing ? Colors.blueAccent : Colors.grey[300]!;
+    // ✅ Use purple for labs, blue for classes
+    final accentColor = isOngoing 
+        ? (period.isLab ? Colors.purple : Colors.blueAccent)
+        : Colors.grey[300]!;
 
     return IntrinsicHeight(
       child: Row(
@@ -159,7 +162,7 @@ class _TimelinePeriodTile extends StatelessWidget {
                 width: 12,
                 height: 12,
                 decoration: BoxDecoration(
-                  color: isOngoing ? Colors.blueAccent : Colors.white,
+                  color: isOngoing ? accentColor : Colors.white,
                   border: Border.all(color: accentColor, width: 2),
                   shape: BoxShape.circle,
                 ),
@@ -179,8 +182,10 @@ class _TimelinePeriodTile extends StatelessWidget {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: isOngoing 
-                    ? Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)) 
-                    : null,
+                    ? Border.all(color: accentColor.withValues(alpha: 0.3)) 
+                    : (period.isLab 
+                        ? Border.all(color: Colors.purple.withValues(alpha: 0.2))
+                        : null),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.03), 
@@ -195,18 +200,31 @@ class _TimelinePeriodTile extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          "Period ${period.periodNumber}",
-                          style: TextStyle(
-                            color: isOngoing ? Colors.blueAccent : Colors.grey[600],
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
+                        Row(
+                          children: [
+                            // ✅ Lab icon
+                            if (period.isLab) ...[
+                              Icon(Icons.science_outlined, 
+                                size: 16, 
+                                color: isOngoing ? Colors.purple : Colors.purple.shade300),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              period.periodCount > 1
+                                  ? "P${period.periodNumber}-P${period.periodNumber + period.periodCount - 1}"
+                                  : "Period ${period.periodNumber}",
+                              style: TextStyle(
+                                color: isOngoing ? accentColor : Colors.grey[600],
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                         Text(
                           "${period.startTime} - ${period.endTime}",
                           style: TextStyle(
-                            color: isOngoing ? Colors.blueAccent : Colors.grey[500],
+                            color: isOngoing ? accentColor : Colors.grey[500],
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
@@ -214,21 +232,49 @@ class _TimelinePeriodTile extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      period.subjectName,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            period.subjectName,
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        // ✅ Lab badge
+                        if (period.isLab)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              "LAB",
+                              style: TextStyle(
+                                color: Colors.purple,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        // Corrected academic icons and darker text for better visibility
                         _miniTag(Icons.business_center_outlined, "${period.branch}-${period.section}"),
                         const SizedBox(width: 12),
                         _miniTag(Icons.school_outlined, "Year ${period.year}"),
                         if (isOngoing) ...[
                           const Spacer(),
-                          const Text("ONGOING", 
-                            style: TextStyle(color: Colors.blueAccent, fontSize: 10, fontWeight: FontWeight.w900)),
+                          Text(
+                            "ONGOING", 
+                            style: TextStyle(
+                              color: accentColor, 
+                              fontSize: 10, 
+                              fontWeight: FontWeight.w900
+                            )
+                          ),
                         ]
                       ],
                     ),
@@ -250,7 +296,7 @@ class _TimelinePeriodTile extends StatelessWidget {
         Text(
           text, 
           style: TextStyle(
-            color: Colors.blueGrey[800], // Darkened for faculty visibility
+            color: Colors.blueGrey[800],
             fontSize: 12, 
             fontWeight: FontWeight.w500
           ),

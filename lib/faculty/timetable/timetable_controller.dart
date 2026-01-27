@@ -53,11 +53,13 @@ class TimetableController extends ChangeNotifier {
           return TimetablePeriod(
             subjectName: m['subjectName'] ?? '',
             subjectCode: m['subjectCode'] ?? '',
-            periodNumber: m['periodNumber'] ?? 0,
+            periodNumber: (m['periodNumber'] as num?)?.toInt() ?? 0,
+            periodCount: (m['periodCount'] as num?)?.toInt() ?? 1, // ✅ NEW
+            isLab: m['isLab'] ?? false, // ✅ NEW
             startTime: m['startTime'] ?? '',
             endTime: m['endTime'] ?? '',
             branch: m['branch'] ?? '',
-            year: m['year'] ?? '',
+            year: m['year']?.toString() ?? '',
             section: m['section'] ?? '',
           );
         }).toList()
@@ -76,6 +78,8 @@ class TimetablePeriod {
   final String subjectName;
   final String subjectCode;
   final int periodNumber;
+  final int periodCount; // ✅ NEW
+  final bool isLab; // ✅ NEW
   final String startTime;
   final String endTime;
   final String branch;
@@ -86,6 +90,8 @@ class TimetablePeriod {
     required this.subjectName,
     required this.subjectCode,
     required this.periodNumber,
+    required this.periodCount,
+    required this.isLab,
     required this.startTime,
     required this.endTime,
     required this.branch,

@@ -1,19 +1,14 @@
-// lib/services/firestore_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Fetches a user's full profile data from either the 'students' or 'faculty' collection.
-  ///
-  /// [userId] is the document ID (e.g., roll number or faculty ID).
-  /// [role] should be either 'student' or 'faculty'.
+  /// ✅ ONE-TIME FETCH of user data
   Future<Map<String, dynamic>?> getUserData(String userId, String role) async {
     try {
       final collectionName = role == 'student' ? 'students' : 'faculty';
       final docRef = _db.collection(collectionName).doc(userId);
-      final docSnap = await docRef.get();
-      
+      final docSnap = await docRef.get(); // ✅ Single read
 
       if (docSnap.exists) {
         return docSnap.data();
@@ -27,13 +22,29 @@ class FirestoreService {
     }
   }
 
-  /// Fetches the timetable for a specific faculty member.
-  /// Returns a stream so the UI can update in real-time if the timetable changes.
-  Stream<DocumentSnapshot> getFacultyTimetableStream(String facultyId) {
-    return _db.collection('faculty_timetables').doc(facultyId).snapshots();
+  // ❌ REMOVED: getFacultyTimetableStream() - was causing continuous reads!
+  
+  /// ✅ NEW: One-time fetch of timetable
+  Future<Map<String, dynamic>?> getFacultyTimetable(String facultyId) async {
+    try {
+      final doc = await _db
+          .collection('faculty_timetables')
+          .doc(facultyId)
+          .get();
+          
+      if (!doc.exists) {
+        print('No timetable found for faculty: $facultyId');
+        return null;
+      }
+      
+      return doc.data();
+    } catch (e) {
+      print('Error getting faculty timetable: $e');
+      return null;
+    }
   }
 
-  /// Generic function to fetch a single document from any collection.
+  /// Generic function to fetch a single document from any collection
   Future<DocumentSnapshot> getDocument(String collection, String docId) {
     return _db.collection(collection).doc(docId).get();
   }

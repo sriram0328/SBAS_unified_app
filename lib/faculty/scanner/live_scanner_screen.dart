@@ -1,3 +1,4 @@
+// lib/faculty/scanner/live_scanner_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -7,6 +8,8 @@ import '../../services/attendance_service.dart';
 class LiveScannerScreen extends StatefulWidget {
   final String facultyId;
   final int periodNumber;
+  final int periodCount;     // ✅ KEEP - needed for submission
+  final bool isLab;          // ✅ KEEP - needed for submission & UI
   final String year;
   final String branch;
   final String section;
@@ -18,6 +21,8 @@ class LiveScannerScreen extends StatefulWidget {
     super.key,
     required this.facultyId,
     required this.periodNumber,
+    required this.periodCount,
+    required this.isLab,
     required this.year,
     required this.branch,
     required this.section,
@@ -116,7 +121,7 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
                     Expanded(
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2962FF),
+                          backgroundColor: widget.isLab ? Colors.purple : const Color(0xFF2962FF),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
@@ -138,20 +143,17 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
   }
 
   // OPTIMIZED SUBMISSION logic to cut down wait time
-// lib/faculty/scanner/live_scanner_screen.dart
-
   Future<void> _handleSubmit() async {
-    // 1. Set processing to true to show loading briefly and prevent double-taps
     setState(() { 
       controller.isProcessing = true; 
     });
 
-    // 2. Trigger the database call WITHOUT 'await'
-    // Because offline persistence is ON, Firestore caches this locally and 
-    // returns a successful 'Future' immediately in its internal logic.
+    // ✅ Pass periodCount and isLab to the service
     _attendanceService.createAttendance(
       facultyId: widget.facultyId,
       periodNumber: widget.periodNumber,
+      periodCount: widget.periodCount,    // ✅ NOW PASSED
+      isLab: widget.isLab,                // ✅ NOW PASSED
       year: widget.year,
       branch: widget.branch,
       section: widget.section,
@@ -161,16 +163,14 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
       presentStudentIds: controller.presentStudentIds.toList(),
     );
 
-    // 3. Stop the camera hardware
     cameraController.stop();
 
-    // 4. Exit the screen immediately
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Attendance Saved (Syncing in background)'),
-          backgroundColor: Colors.blueAccent,
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(widget.isLab ? 'Lab Attendance Saved (Syncing...)' : 'Attendance Saved (Syncing...)'),
+          backgroundColor: widget.isLab ? Colors.purple : Colors.blueAccent,
+          duration: const Duration(seconds: 2),
         ),
       );
       Navigator.of(context).pop(); 
@@ -185,6 +185,9 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Use purple for labs, blue for classes
+    final accentColor = widget.isLab ? Colors.purple : const Color(0xFF2962FF);
+    
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -228,8 +231,22 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(widget.subjectName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                      Text('${widget.branch}-${widget.section} • P${widget.periodNumber}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (widget.isLab) ...[
+                            const Icon(Icons.science_outlined, color: Colors.white, size: 16),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(widget.subjectName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                        ],
+                      ),
+                      Text(
+                        widget.periodCount > 1
+                            ? '${widget.branch}-${widget.section} • P${widget.periodNumber}-P${widget.periodNumber + widget.periodCount - 1}'
+                            : '${widget.branch}-${widget.section} • P${widget.periodNumber}',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12)
+                      ),
                     ],
                   ),
                   const Spacer(),
@@ -258,7 +275,7 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
               height: 60,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2962FF),
+                  backgroundColor: accentColor,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 ),
                 onPressed: controller.scannedCount == 0 || controller.isProcessing ? null : _showAttendanceReport,

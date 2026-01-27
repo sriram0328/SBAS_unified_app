@@ -71,11 +71,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // --- APP LOGO SECTION ---
-                    const Icon(
+                 /*   const Icon(
                       Icons.school_rounded,
                       size: 80,
                       color: Color(0xFF2962FF),
-                    ),
+                    ),  */
                     const SizedBox(height: 16),
                     const Text(
                       "SBAS",

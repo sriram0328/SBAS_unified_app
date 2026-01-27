@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/session.dart';
 import 'faculty_setup_controller.dart';
 import '../scanner/live_scanner_screen.dart';
 
 class FacultySetupScreen extends StatelessWidget {
-  const FacultySetupScreen({super.key});
+  final String facultyId;
+  const FacultySetupScreen({super.key, required this.facultyId});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => FacultySetupController(),
+      create: (_) => FacultySetupController(facultyId: facultyId),
       child: const _FacultySetupView(),
     );
   }
@@ -35,12 +35,7 @@ class _FacultySetupView extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const FacultySetupScreen()),
-              );
-            },
+            onPressed: () => c.loadInitialData(),
           ),
         ],
       ),
@@ -49,12 +44,7 @@ class _FacultySetupView extends StatelessWidget {
           : c.errorMessage != null
               ? _ErrorView(
                   message: c.errorMessage!,
-                  onRetry: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => const FacultySetupScreen()),
-                    );
-                  },
+                  onRetry: () => c.loadInitialData(),
                 )
               : _MainContent(c),
     );
@@ -78,43 +68,33 @@ class _MainContent extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           
+          // STEP 1: Select Class Details (Year, Branch, Section)
           _buildStepLabel('1', 'SELECT CLASS DETAILS'),
           const SizedBox(height: 12),
+          
+          // Year Dropdown
           _buildDropdown(
-            label: 'Subject',
-            icon: Icons.book_outlined,
-            value: c.selectedSubjectName,
-            items: c.availableSubjects.toList()..sort(),
+            label: 'Year',
+            icon: Icons.school_outlined,
+            value: c.selectedYear,
+            items: c.availableYears.toList()..sort(),
             enabled: true,
-            onChanged: (v) { if (v != null) c.selectSubject(v); },
+            onChanged: (v) { if (v != null) c.selectYear(v); },
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildDropdown(
-                  label: 'Year',
-                  icon: Icons.school_outlined,
-                  value: c.selectedYear,
-                  items: c.getAvailableYears().toList()..sort(),
-                  enabled: c.selectedSubjectName != null,
-                  onChanged: (v) { if (v != null) c.selectYear(v); },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildDropdown(
-                  label: 'Branch',
-                  icon: Icons.business_center_outlined,
-                  value: c.selectedBranch,
-                  items: c.getAvailableBranches().toList()..sort(),
-                  enabled: c.selectedYear != null,
-                  onChanged: (v) { if (v != null) c.selectBranch(v); },
-                ),
-              ),
-            ],
+          
+          // Branch Dropdown
+          _buildDropdown(
+            label: 'Branch',
+            icon: Icons.business_center_outlined,
+            value: c.selectedBranch,
+            items: c.getAvailableBranches().toList()..sort(),
+            enabled: c.selectedYear != null,
+            onChanged: (v) { if (v != null) c.selectBranch(v); },
           ),
           const SizedBox(height: 16),
+          
+          // Section Dropdown
           _buildDropdown(
             label: 'Section',
             icon: Icons.group_outlined,
@@ -123,14 +103,84 @@ class _MainContent extends StatelessWidget {
             enabled: c.selectedBranch != null,
             onChanged: (v) { if (v != null) c.selectSection(v); },
           ),
-
+          
           const SizedBox(height: 32),
-          _buildStepLabel('2', 'SELECT PERIOD'),
-          const SizedBox(height: 16),
-          _buildPeriodGrid(), // New Grid Layout for Periods
-
-          const SizedBox(height: 40),
-          _buildProceedButton(context),
+          
+          // STEP 2: Select Subject (appears after section is selected)
+          if (c.selectedSection != null) ...[
+            _buildStepLabel('2', 'SELECT SUBJECT'),
+            const SizedBox(height: 12),
+            
+            if (c.availableSubjectDisplayNames.isEmpty && !c.isLoading)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'No subjects found for this class',
+                        style: TextStyle(color: Colors.orange, fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              // ✅ FIX: Show full display names including Lab/Theory distinction
+              _buildDropdown(
+                label: 'Subject',
+                icon: Icons.book_outlined,
+                value: c.selectedSubjectDisplay,
+                items: c.availableSubjectDisplayNames.toList()..sort(),
+                enabled: true,
+                onChanged: (v) { if (v != null) c.selectSubject(v); },
+              ),
+            
+            // Show lab info badge if it's a lab
+            if (c.isLab && c.selectedSubjectDisplay != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.purple.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.science_outlined, color: Colors.purple, size: 20),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Lab Session - ${c.periodCount} ${c.periodCount == 1 ? "period" : "periods"} will be marked',
+                      style: const TextStyle(
+                        color: Colors.purple,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            
+            const SizedBox(height: 32),
+          ],
+          
+          // STEP 3: Select Period (appears after subject is selected)
+          if (c.selectedSubjectDisplay != null) ...[
+            _buildStepLabel('3', 'SELECT STARTING PERIOD'),
+            const SizedBox(height: 16),
+            _buildPeriodGrid(),
+            const SizedBox(height: 40),
+            _buildProceedButton(context),
+          ],
         ],
       ),
     );
@@ -167,7 +217,7 @@ class _MainContent extends StatelessWidget {
     return Opacity(
       opacity: enabled ? 1.0 : 0.5,
       child: DropdownButtonFormField<String>(
-        initialValue: (items.contains(value)) ? value : null,
+        value: (items.contains(value)) ? value : null,
         isExpanded: true,
         style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.w500),
         decoration: InputDecoration(
@@ -184,6 +234,10 @@ class _MainContent extends StatelessWidget {
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+          ),
+          disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5),
           ),
         ),
         items: items.map((e) => DropdownMenuItem(value: e, child: Text(e, overflow: TextOverflow.ellipsis))).toList(),
@@ -206,38 +260,76 @@ class _MainContent extends StatelessWidget {
       itemBuilder: (context, index) {
         final p = c.periods[index];
         bool isSelected = c.selectedPeriodNumber == p;
+        bool isLocked = c.lockedPeriods.contains(p);
+        
+        // Show which periods will be covered for labs
+        bool isCovered = c.isLab && c.selectedPeriodNumber != 0 && 
+                         p >= c.selectedPeriodNumber && 
+                         p < c.selectedPeriodNumber + c.periodCount;
+        
         return GestureDetector(
-          onTap: () => c.setPeriodNumber(p),
+          onTap: isLocked ? null : () => c.setPeriodNumber(p),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
-              color: isSelected ? Colors.blueAccent : Colors.white,
+              color: isLocked
+                  ? Colors.grey.shade300
+                  : (isSelected 
+                      ? (c.isLab ? Colors.purple : Colors.blueAccent)
+                      : (isCovered ? (c.isLab ? Colors.purple.withValues(alpha: 0.2) : Colors.blueAccent.withValues(alpha: 0.2)) : Colors.white)),
               borderRadius: BorderRadius.circular(15),
               border: Border.all(
-                color: isSelected ? Colors.blueAccent : Colors.grey.shade200,
+                color: isLocked
+                    ? Colors.grey.shade400
+                    : (isSelected 
+                        ? (c.isLab ? Colors.purple : Colors.blueAccent)
+                        : (isCovered ? (c.isLab ? Colors.purple : Colors.blueAccent) : Colors.grey.shade200)),
                 width: 1.5,
               ),
               boxShadow: isSelected 
-                ? [BoxShadow(color: Colors.blueAccent.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4))]
+                ? [BoxShadow(
+                    color: (c.isLab ? Colors.purple : Colors.blueAccent).withValues(alpha: 0.2), 
+                    blurRadius: 8, 
+                    offset: const Offset(0, 4)
+                  )]
                 : [],
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.access_time_filled_rounded,
+                  isLocked
+                      ? Icons.lock_outline
+                      : (c.isLab && (isSelected || isCovered) ? Icons.science_outlined : Icons.access_time_filled_rounded),
                   size: 16,
-                  color: isSelected ? Colors.white70 : Colors.blueGrey.shade200,
+                  color: isLocked
+                      ? Colors.grey.shade600
+                      : (isSelected 
+                          ? Colors.white70 
+                          : (isCovered ? (c.isLab ? Colors.purple : Colors.blueAccent) : Colors.blueGrey.shade200)),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'P$p',
                   style: TextStyle(
-                    color: isSelected ? Colors.white : const Color(0xFF1A1C1E),
+                    color: isLocked
+                        ? Colors.grey.shade600
+                        : (isSelected 
+                            ? Colors.white 
+                            : (isCovered ? (c.isLab ? Colors.purple : Colors.blueAccent) : const Color(0xFF1A1C1E))),
                     fontWeight: FontWeight.w900,
                     fontSize: 16,
                   ),
                 ),
+                if (isLocked)
+                  Text(
+                    'Done',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -253,22 +345,30 @@ class _MainContent extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         boxShadow: c.canProceed 
-            ? [BoxShadow(color: Colors.blueAccent.withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 8))]
+            ? [BoxShadow(
+                color: (c.isLab ? Colors.purple : Colors.blueAccent).withValues(alpha: 0.3), 
+                blurRadius: 15, 
+                offset: const Offset(0, 8)
+              )]
             : [],
       ),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF2962FF),
+          backgroundColor: c.isLab ? Colors.purple : const Color(0xFF2962FF),
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           elevation: 0,
         ),
         onPressed: c.canProceed ? () => _handleProceed(context, c) : null,
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Proceed to Scan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-            SizedBox(width: 10),
+            Text(
+              c.isLab ? 'Start Lab Session' : 'Proceed to Scan',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)
+            ),
+            const SizedBox(width: 10),
+            if (c.isLab) const Icon(Icons.science_outlined, size: 20),
           ],
         ),
       ),
@@ -346,8 +446,10 @@ Future<void> _handleProceed(BuildContext context, FacultySetupController c) asyn
     context,
     MaterialPageRoute(
       builder: (_) => LiveScannerScreen(
-        facultyId: Session.facultyId,
+        facultyId: c.facultyId,
         periodNumber: c.selectedPeriodNumber,
+        periodCount: c.periodCount,
+        isLab: c.isLab,
         year: c.selectedYear!,
         branch: c.selectedBranch!,
         section: c.selectedSection!,

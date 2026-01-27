@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '/core/colors.dart';
 import '/student/attendance/attendance_history_screen.dart';
 import '/student/attendance/attendance_overview_screen.dart';
 import '/student/dashboard/student_dashboard_controller.dart';
 import '/student/id_card/student_id_screen.dart';
 import '/student/profile/student_profile_screen.dart';
-import '/auth/login/login_screen.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   const StudentDashboardScreen({super.key});
@@ -79,132 +79,133 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           ? const Center(child: CircularProgressIndicator())
           : controller.errorMessage != null
               ? Center(child: Text(controller.errorMessage!))
-              : Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Hi, ${controller.studentName}",
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+              : RefreshIndicator(
+                  // ✅ ADDED: Pull-to-refresh
+                  onRefresh: () => controller.loadStudentData(),
+                  color: Colors.blue,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Hi, ${controller.studentName}",
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        controller.department,
-                        style: const TextStyle(
-                            color: AppColors.textSecondary),
-                      ),
-                      Text(
-                        controller.classInfo,
-                        style: const TextStyle(
-                            color: AppColors.textSecondary),
-                      ),
-                      Text(
-                        controller.rollNo,
-                        style: const TextStyle(
-                            color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 6),
+                        Text(
+                          controller.department,
+                          style: const TextStyle(color: AppColors.textSecondary),
+                        ),
+                        Text(
+                          controller.classInfo,
+                          style: const TextStyle(color: AppColors.textSecondary),
+                        ),
+                        Text(
+                          controller.rollNo,
+                          style: const TextStyle(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 24),
 
-                      /// 🔥 REAL ATTENDANCE CARD
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  const AttendanceOverviewScreen(),
+                        /// 🔥 REAL ATTENDANCE CARD
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const AttendanceOverviewScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 22),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black12,
+                                  blurRadius: 10,
+                                  offset: Offset(0, 4),
+                                )
+                              ],
                             ),
-                          );
-                        },
-                        child: Container(
-                          width: double.infinity,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 22),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 10,
-                                offset: Offset(0, 4),
-                              )
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                "${controller.attendancePercentage.toStringAsFixed(0)}%",
-                                style: const TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green,
+                            child: Column(
+                              children: [
+                                Text(
+                                  "${controller.attendancePercentage.toStringAsFixed(0)}%",
+                                  style: const TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                "Attendance",
-                                style: TextStyle(
-                                    color: AppColors.textSecondary),
-                              ),
-                            ],
+                                const SizedBox(height: 4),
+                                const Text(
+                                  "Attendance",
+                                  style: TextStyle(color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
 
-                      const SizedBox(height: 28),
+                        const SizedBox(height: 28),
 
-                      const Text(
-                        "Quick Actions",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                        const Text(
+                          "Quick Actions",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
 
-                      const SizedBox(height: 14),
+                        const SizedBox(height: 14),
 
-                      Row(
-                        children: [
-                          _QuickActionCard(
-                            icon: Icons.badge,
-                            title: "My ID Card",
-                            subtitle: "View Digital ID",
-                            color: Colors.blue,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const StudentIdScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 14),
-                          _QuickActionCard(
-                            icon: Icons.event_available,
-                            title: "Attendance",
-                            subtitle: "Check History",
-                            color: Colors.orange,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const AttendanceHistoryScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
+                        Row(
+                          children: [
+                            _QuickActionCard(
+                              icon: Icons.badge,
+                              title: "My ID Card",
+                              subtitle: "View Digital ID",
+                              color: Colors.blue,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const StudentIdScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 14),
+                            _QuickActionCard(
+                              icon: Icons.event_available,
+                              title: "Attendance",
+                              subtitle: "Check History",
+                              color: Colors.orange,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const AttendanceHistoryScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        
+                        // ✅ ADDED: Extra space for pull-to-refresh
+                        const SizedBox(height: 100),
+                      ],
+                    ),
                   ),
                 ),
     );
@@ -228,8 +229,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   const CircleAvatar(
                     radius: 28,
                     backgroundColor: Colors.white,
-                    child: Icon(Icons.person,
-                        color: Color(0xFF4F6BED)),
+                    child: Icon(Icons.person, color: Color(0xFF4F6BED)),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -246,13 +246,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         ),
                         Text(
                           controller.classInfo,
-                          style: const TextStyle(
-                              color: Colors.white70),
+                          style: const TextStyle(color: Colors.white70),
                         ),
                         Text(
                           controller.rollNo,
-                          style: const TextStyle(
-                              color: Colors.white70),
+                          style: const TextStyle(color: Colors.white70),
                         ),
                       ],
                     ),
@@ -273,8 +271,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                    builder: (_) => const StudentIdScreen()),
+                MaterialPageRoute(builder: (_) => const StudentIdScreen()),
               );
             },
           ),
@@ -284,9 +281,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                    builder: (_) =>
-                        const AttendanceOverviewScreen()),
+                MaterialPageRoute(builder: (_) => const AttendanceOverviewScreen()),
               );
             },
           ),
@@ -296,23 +291,56 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                    builder: (_) => const StudentProfileScreen()),
+                MaterialPageRoute(builder: (_) => const StudentProfileScreen()),
               );
             },
           ),
           const Divider(),
+          
+          // ✅ FIXED: Logout with Firebase Auth
           _DrawerItem(
             icon: Icons.logout,
             title: "Logout",
             textColor: Colors.red,
-            onTap: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const LoginScreen()),
-                (_) => false,
+            onTap: () async {
+              final shouldLogout = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Logout'),
+                  content: const Text('Are you sure you want to logout?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                      child: const Text('Logout'),
+                    ),
+                  ],
+                ),
               );
+
+              if (shouldLogout == true && context.mounted) {
+                try {
+                  await FirebaseAuth.instance.signOut();
+                  
+                  if (context.mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/login',
+                      (route) => false,
+                    );
+                  }
+                } catch (e) {
+                  debugPrint('❌ Logout error: $e');
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Logout failed. Please try again.')),
+                    );
+                  }
+                }
+              }
             },
           ),
         ],
@@ -339,8 +367,7 @@ class _DrawerItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       leading: Icon(icon, color: textColor ?? Colors.black87),
-      title: Text(title,
-          style: TextStyle(color: textColor ?? Colors.black87)),
+      title: Text(title, style: TextStyle(color: textColor ?? Colors.black87)),
       onTap: onTap,
     );
   }
@@ -384,15 +411,11 @@ class _QuickActionCard extends StatelessWidget {
                 child: Icon(icon, color: color),
               ),
               const SizedBox(height: 12),
-              Text(title,
-                  style:
-                      const TextStyle(fontWeight: FontWeight.w600)),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary),
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
             ],
           ),
