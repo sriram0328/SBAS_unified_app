@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'faculty_dashboard_controller.dart';
 import '../setup/faculty_setup_screen.dart';
 import '../reports/attendance_report_screen.dart';
-import '../timetable/timetable_screen.dart';
+import '../long_reports/long_reports_screen.dart';
 
 class FacultyDashboardScreen extends StatelessWidget {
   final String facultyId;
@@ -232,12 +232,12 @@ class _DashboardView extends StatelessWidget {
     return Row(children: [
       Expanded(
           child: _actionCard(
-              icon: Icons.calendar_today_outlined,
-              label: 'Timetable',
+              icon: Icons.assignment_outlined,
+              label: 'Class Reports',
               onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => TimetableScreen(facultyId: c.facultyId))))),
+                      builder: (_) => LongReportsScreen(facultyId: c.facultyId))))),
       const SizedBox(width: 16),
       Expanded(
           child: _actionCard(
