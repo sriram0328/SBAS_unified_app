@@ -10,94 +10,167 @@ class LongReportsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => LongReportsController(facultyId: facultyId),
-      child: const _LongReportsSelectionView(),
+      child: const _View(),
     );
   }
 }
 
-class _LongReportsSelectionView extends StatelessWidget {
-  const _LongReportsSelectionView();
+class _View extends StatelessWidget {
+  const _View();
 
   @override
   Widget build(BuildContext context) {
-    final ctrl = context.watch<LongReportsController>();
+    final c = context.watch<LongReportsController>();
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Report Parameters'), centerTitle: true),
-      body: ctrl.isLoading ? const Center(child: CircularProgressIndicator()) : Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Expanded(child: ListView(children: [
-              _drop("Year", ctrl.selectedYear, ctrl.years, ctrl.setYear),
-              _drop("Branch", ctrl.selectedBranch, ctrl.branches, ctrl.setBranch),
-              _drop("Section", ctrl.selectedSection, ctrl.sections, ctrl.setSection),
-              _drop("Subject", ctrl.selectedSubject, ctrl.subjects.map((e) => e['code'] as String).toList(), ctrl.setSubject),
-              _drop("Month", ctrl.selectedMonth, ctrl.months, ctrl.setMonth),
-            ])),
-            SizedBox(width: double.infinity, height: 50, child: ElevatedButton(
-              onPressed: ctrl.canGenerate ? () async {
-                if (await ctrl.fetchReportData() && context.mounted) {
-                  Navigator.push(context, MaterialPageRoute(builder: (c) => _SyncedReportView(controller: ctrl)));
-                }
-              } : null,
-              child: const Text("View Tabular Report"),
-            ))
-          ],
+      appBar: AppBar(title: const Text('Monthly Attendance')),
+
+      body: c.loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 90),
+              child: Column(
+                children: [
+                  _selectors(c),
+                ],
+              ),
+            ),
+
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(12),
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.table_chart),
+          label: const Text('View Attendance'),
+          onPressed: () async {
+            final ok = await c.loadReport();
+            if (!context.mounted) return;
+
+            if (ok) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => _Grid(c),
+                ),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No data found')),
+              );
+            }
+          },
         ),
       ),
     );
   }
 
-  Widget _drop(String l, String? v, List<String> i, Function(String?) f) {
-    return Padding(padding: const EdgeInsets.only(bottom: 15), child: DropdownButtonFormField<String>(
-      decoration: InputDecoration(labelText: l, border: const OutlineInputBorder()),
-      value: v, items: i.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: f,
-    ));
+  Widget _selectors(LongReportsController c) {
+    Widget drop(
+      String label,
+      String? value,
+      List<String> items,
+      void Function(String?) onChanged,
+    ) {
+      return Padding(
+        padding: const EdgeInsets.all(8),
+        child: DropdownButtonFormField<String>(
+          value: value,
+          decoration: InputDecoration(
+            labelText: label,
+            border: const OutlineInputBorder(),
+          ),
+          items: items
+              .map(
+                (e) => DropdownMenuItem(
+                  value: e,
+                  child: Text(e),
+                ),
+              )
+              .toList(),
+          onChanged: onChanged,
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        drop('Year', c.year, ['1', '2', '3', '4'], (v) => c.year = v),
+        drop('Branch', c.branch, ['AIML', 'AIDS'], (v) => c.branch = v),
+        drop('Section', c.section, ['A', 'B'], (v) => c.section = v),
+        drop('Subject', c.subject, ['23AM4T03'], (v) => c.subject = v),
+        drop('Month', c.month, ['2026-01', '2026-02'], (v) => c.month = v),
+      ],
+    );
   }
 }
 
-class _SyncedReportView extends StatefulWidget {
-  final LongReportsController controller;
-  const _SyncedReportView({required this.controller});
-  @override
-  State<_SyncedReportView> createState() => _SyncedReportViewState();
-}
-
-class _SyncedReportViewState extends State<_SyncedReportView> {
-  final ScrollController _fixedC = ScrollController(), _mainC = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    _mainC.addListener(() { if (_fixedC.offset != _mainC.offset) _fixedC.jumpTo(_mainC.offset); });
-    _fixedC.addListener(() { if (_mainC.offset != _fixedC.offset) _mainC.jumpTo(_fixedC.offset); });
-  }
+class _Grid extends StatelessWidget {
+  final LongReportsController c;
+  const _Grid(this.c);
 
   @override
   Widget build(BuildContext context) {
-    final days = widget.controller.getDaysInMonth();
-    final dTotals = widget.controller.calculateDailyClassTotals();
+    final days = c.days();
+    final students = c.students;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Attendance Grid'), actions: [IconButton(icon: const Icon(Icons.print), onPressed: widget.controller.printReport)]),
-      body: Row(children: [
-        SizedBox(width: 90, child: Column(children: [
-          _cell("Roll No", isH: true, w: 90),
-          Expanded(child: ListView.builder(controller: _fixedC, itemCount: widget.controller.attendanceData.length, itemBuilder: (c, i) => _cell(widget.controller.attendanceData[i]['rollNo'], w: 90))),
-          _cell("Total", isH: true, w: 90, color: Colors.orange.shade100),
-        ])),
-        Expanded(child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: SizedBox(width: days.length * 45.0 + 70.0, child: Column(children: [
-          Row(children: [...days.map((d) => _cell(d.split('-').last, isH: true, w: 45)), _cell("Total", isH: true, w: 70)]),
-          Expanded(child: ListView.builder(controller: _mainC, itemCount: widget.controller.attendanceData.length, itemBuilder: (c, i) {
-            final stats = widget.controller.calculateStudentStats(widget.controller.attendanceData[i]);
-            return Row(children: [...stats.dailyStrings.map((s) => _cell(s, w: 45)), _cell(stats.totalString, w: 70, tC: Colors.blue)]);
-          })),
-          Row(children: [...days.map((d) => _cell(dTotals[d]!, isH: true, w: 45, color: Colors.orange.shade50)), _cell("-", isH: true, w: 70, color: Colors.orange.shade50)]),
-        ]))))
-      ]),
+      appBar: AppBar(
+        title: const Text('Attendance Grid'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf),
+            tooltip: 'Export PDF',
+            onPressed: () async {
+              await c.exportPdf();
+            },
+          ),
+        ],
+      ),
+      body: Scrollbar(
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _cell('Roll'),
+                    ...days.map((d) => _cell(d.split('-').last)),
+                    _cell('Total'),
+                  ],
+                ),
+                ...students.map((r) {
+                  final s = c.studentStats(r);
+                  return Row(
+                    children: [
+                      _cell(r),
+                      ...s.daily.map(_cell),
+                      _cell(s.total),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _cell(String t, {bool isH = false, required double w, Color? tC, Color? color}) {
-    return Container(width: w, height: 35, alignment: Alignment.center, decoration: BoxDecoration(color: color ?? (isH ? Colors.blue.shade50 : Colors.white), border: Border.all(color: Colors.grey.shade300)), child: Text(t, style: TextStyle(fontSize: 10, fontWeight: isH ? FontWeight.bold : FontWeight.normal, color: tC)));
+  Widget _cell(String t) {
+    return Container(
+      width: 55,
+      height: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Text(
+        t,
+        style: const TextStyle(fontSize: 10),
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
   }
 }

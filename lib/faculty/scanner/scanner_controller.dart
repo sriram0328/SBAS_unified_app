@@ -36,7 +36,7 @@ class ScannerController {
        lastScanned = "Already Scanned: $studentUid";
        showSuccessPopup = true;
        refreshUI();
-       Timer(const Duration(seconds: 2), () {
+       Timer(const Duration(seconds: 1), () {
           showSuccessPopup = false;
           refreshUI();
        });
@@ -56,10 +56,10 @@ class ScannerController {
     showSuccessPopup = true;
     refreshUI();
 
-    Timer(const Duration(seconds: 2), () {
+    Timer(const Duration(seconds: 1), () {
       showSuccessPopup = false;
       isProcessing = false;
       refreshUI();
-    });
+      });
   }
 }
