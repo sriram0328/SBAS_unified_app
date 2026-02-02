@@ -259,13 +259,53 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
             ),
           ),
 
+          // Success popup - green
           if (controller.showSuccessPopup)
             Positioned(
-              left: 40, right: 40, bottom: 130,
+              left: 40, right: 40, bottom: 200,
               child: Container(
                 padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(30)),
-                child: Text(controller.lastScannedText, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.9), 
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  controller.lastScannedText, 
+                  textAlign: TextAlign.center, 
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+            ),
+
+          // Error popup - red
+          if (controller.showErrorPopup)
+            Positioned(
+              left: 40, right: 40, bottom: 200,
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.9), 
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  controller.lastScannedText, 
+                  textAlign: TextAlign.center, 
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
               ),
             ),
 

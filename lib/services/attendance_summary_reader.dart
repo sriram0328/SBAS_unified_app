@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
+import 'firestore_unflatten_helper.dart';
 
 class AttendanceSummaryReader {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -11,6 +11,7 @@ class AttendanceSummaryReader {
   }) async {
     try {
       final docId = '${rollNo}_$month';
+
       final doc = await _db
           .collection('attendance_summaries')
           .doc(docId)
@@ -20,9 +21,20 @@ class AttendanceSummaryReader {
         return null;
       }
 
-      return doc.data();
-    } catch (e) {
-      debugPrint('Error fetching summary: $e');
+      final flatData = doc.data()!;
+
+      // Check if data is already nested
+      final hasNestedStructure =
+          flatData.containsKey('overall') && flatData['overall'] is Map;
+
+      if (hasNestedStructure) {
+        return flatData;
+      }
+
+      // Unflatten flat Firestore data
+      final unflattened = FirestoreUnflattenHelper.unflatten(flatData);
+      return unflattened;
+    } catch (_) {
       return null;
     }
   }
@@ -44,10 +56,7 @@ class AttendanceSummaryReader {
     return getMonthSummary(rollNo: rollNo, month: month);
   }
 
-  // ❌ REMOVED: streamMonthSummary() - was causing continuous reads!
-  // If you need "real-time" updates, use manual refresh instead:
-  
-  /// ✅ NEW: Refresh summary manually (call this after attendance submission)
+  /// ✅ Manual refresh (after attendance submission)
   Future<void> refreshSummary({
     required String rollNo,
     required String month,
@@ -62,22 +71,29 @@ class AttendanceSummaryReader {
     required List<String> enrolledStudentIds,
     required List<String> presentStudentIds,
   }) async {
-    debugPrint('⚠️ updateStudentSummaries called but is deprecated - backend handles this now');
+    return;
   }
 }
 
-// Model classes remain the same...
+// ===================== MODELS =====================
+
 class AttendanceSummary {
-  final String studentId;
+  final String rollNo;
   final String month;
+  final String? branch;
+  final String? section;
+  final String? year;
   final OverallStats overall;
   final Map<String, SubjectStats> bySubject;
   final Map<String, DateStats> byDate;
   final DateTime? updatedAt;
 
   AttendanceSummary({
-    required this.studentId,
+    required this.rollNo,
     required this.month,
+    this.branch,
+    this.section,
+    this.year,
     required this.overall,
     required this.bySubject,
     required this.byDate,
@@ -86,8 +102,11 @@ class AttendanceSummary {
 
   factory AttendanceSummary.fromFirestore(Map<String, dynamic> data) {
     return AttendanceSummary(
-      studentId: data['studentId'] ?? '',
+      rollNo: data['rollNo'] ?? '',
       month: data['month'] ?? '',
+      branch: data['branch'],
+      section: data['section'],
+      year: data['year']?.toString(),
       overall: OverallStats.fromMap(data['overall'] ?? {}),
       bySubject: _parseSubjectStats(data['bySubject'] ?? {}),
       byDate: _parseDateStats(data['byDate'] ?? {}),
@@ -95,12 +114,14 @@ class AttendanceSummary {
     );
   }
 
-  static Map<String, SubjectStats> _parseSubjectStats(Map<dynamic, dynamic> data) {
+  static Map<String, SubjectStats> _parseSubjectStats(
+      Map<dynamic, dynamic> data) {
     return data.map((key, value) =>
         MapEntry(key.toString(), SubjectStats.fromMap(value as Map)));
   }
 
-  static Map<String, DateStats> _parseDateStats(Map<dynamic, dynamic> data) {
+  static Map<String, DateStats> _parseDateStats(
+      Map<dynamic, dynamic> data) {
     return data.map((key, value) =>
         MapEntry(key.toString(), DateStats.fromMap(value as Map)));
   }
@@ -109,31 +130,30 @@ class AttendanceSummary {
 class OverallStats {
   final int totalClasses;
   final int present;
-  final int absent;
   final double percentage;
 
   OverallStats({
     required this.totalClasses,
     required this.present,
-    required this.absent,
     required this.percentage,
   });
 
   factory OverallStats.fromMap(Map<dynamic, dynamic> data) {
     final total = (data['totalClasses'] ?? 0) as int;
     final present = (data['present'] ?? 0) as int;
-    final absent = (data['absent'] ?? 0) as int;
-    final percentage = total > 0 
+
+    final percentage = total > 0
         ? ((data['percentage'] ?? (present / total * 100)) as num).toDouble()
         : 0.0;
 
     return OverallStats(
       totalClasses: total,
       present: present,
-      absent: absent,
       percentage: percentage,
     );
   }
+
+  int get absent => totalClasses - present;
 }
 
 class SubjectStats {
@@ -150,6 +170,7 @@ class SubjectStats {
   factory SubjectStats.fromMap(Map<dynamic, dynamic> data) {
     final total = (data['total'] ?? 0) as int;
     final present = (data['present'] ?? 0) as int;
+
     final percentage = total > 0
         ? ((data['percentage'] ?? (present / total * 100)) as num).toDouble()
         : 0.0;
@@ -167,18 +188,52 @@ class SubjectStats {
 class DateStats {
   final int total;
   final int present;
+  final Map<String, PeriodStats>? periods;
 
   DateStats({
     required this.total,
     required this.present,
+    this.periods,
   });
 
   factory DateStats.fromMap(Map<dynamic, dynamic> data) {
+    Map<String, PeriodStats>? periods;
+
+    if (data['periods'] != null) {
+      final periodsData = data['periods'] as Map<dynamic, dynamic>;
+      periods = periodsData.map((key, value) =>
+          MapEntry(key.toString(), PeriodStats.fromMap(value as Map)));
+    }
+
     return DateStats(
       total: (data['total'] ?? 0) as int,
       present: (data['present'] ?? 0) as int,
+      periods: periods,
     );
   }
 
   int get absent => total - present;
+}
+
+class PeriodStats {
+  final String subject;
+  final String subjectCode;
+  final bool isPresent;
+  final bool isLab;
+
+  PeriodStats({
+    required this.subject,
+    required this.subjectCode,
+    required this.isPresent,
+    required this.isLab,
+  });
+
+  factory PeriodStats.fromMap(Map<dynamic, dynamic> data) {
+    return PeriodStats(
+      subject: data['subject'] ?? '',
+      subjectCode: data['subjectCode'] ?? '',
+      isPresent: data['isPresent'] ?? false,
+      isLab: data['isLab'] ?? false,
+    );
+  }
 }

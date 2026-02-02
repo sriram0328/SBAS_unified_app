@@ -8,6 +8,7 @@ class ScannerController {
 
   bool isProcessing = false;
   bool showSuccessPopup = false;
+  bool showErrorPopup = false;
   String lastScanned = '';
   bool isFlashOn = false; 
 
@@ -46,6 +47,13 @@ class ScannerController {
     // ❌ NOT ENROLLED
     if (!enrolledStudentIds.contains(studentUid)) {
       onInvalidStudent();
+      lastScanned = "Student not from this class";
+      showErrorPopup = true;
+      refreshUI();
+      Timer(const Duration(seconds: 2), () {
+        showErrorPopup = false;
+        refreshUI();
+      });
       return;
     }
 

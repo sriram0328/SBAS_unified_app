@@ -166,7 +166,7 @@ class _DayDetailsBottomSheet extends StatelessWidget {
                     const SizedBox(width: 12),
                     _SummaryChip(
                       "${percentage.toInt()}%",
-                      "Score",
+                      "",
                       percentage >= 75 ? Colors.green : 
                       percentage >= 50 ? Colors.orange : Colors.red,
                     ),

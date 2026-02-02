@@ -1,4 +1,3 @@
-
 // student_profile_controller.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -47,7 +46,27 @@ class StudentProfileController extends ChangeNotifier {
       rollNo = data['rollno'] ?? '';
       branch = data['branch'] ?? '';
       section = data['section'] ?? '';
-      year = data['year'] ?? '';
+      
+      // Fetch year from academic_records collection
+      try {
+        final academicRecordsQuery = await _db
+            .collection('academic_records')
+            .where('studentId', isEqualTo: user.uid)
+            .where('status', isEqualTo: 'active')
+            .limit(1)
+            .get();
+
+        if (academicRecordsQuery.docs.isNotEmpty) {
+          final academicData = academicRecordsQuery.docs.first.data();
+          final yearOfStudy = academicData['yearOfStudy'];
+          year = yearOfStudy?.toString() ?? '';
+        } else {
+          year = '';
+        }
+      } catch (e) {
+        print('Error fetching academic records: $e');
+        year = '';
+      }
 
       isLoading = false;
       notifyListeners();

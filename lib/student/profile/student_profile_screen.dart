@@ -34,13 +34,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       appBar: AppBar(
         leading: const BackButton(),
         title: const Text("My Profile"),
-        actions: [
-          if (!controller.isLoading)
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => controller.editProfile(context),
-            ),
-        ],
       ),
       body: controller.isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -72,10 +65,18 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                   _SectionCard(
                     title: "Academic Details",
                     children: [
-                      _InfoRow("Roll No", controller.rollNo),
-                      _InfoRow("Branch", controller.branch),
-                      _InfoRow("Section", controller.section),
-                      _InfoRow("Year", controller.year),
+                      _InfoRow("Roll No", controller.rollNo.isNotEmpty
+                          ? controller.rollNo
+                          : 'Not provided'),
+                      _InfoRow("Branch", controller.branch.isNotEmpty
+                          ? controller.branch
+                          : 'Not provided'),
+                      _InfoRow("Section", controller.section.isNotEmpty
+                          ? controller.section
+                          : 'Not provided'),
+                      _InfoRow("Year", controller.year.isNotEmpty
+                          ? controller.year
+                          : 'Not provided'),
                     ],
                   ),
                   const SizedBox(height: 16),

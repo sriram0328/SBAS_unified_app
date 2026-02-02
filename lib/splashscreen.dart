@@ -173,7 +173,7 @@ class _SplashScreenState extends State<SplashScreen>
               ),
               const SizedBox(height: 30),
               const Text(
-                'SBAS Attendance',
+                'SBAS',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
