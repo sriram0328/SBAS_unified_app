@@ -1,4 +1,3 @@
-// lib/student/attendance/controllers/weekly_summary_controller.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,9 +5,9 @@ import 'package:intl/intl.dart';
 import '../../../services/attendance_summary_reader.dart';
 
 class WeeklySummaryController extends ChangeNotifier {
-  final _summaryService = AttendanceSummaryReader();
-  final _auth = FirebaseAuth.instance;
-  final _db = FirebaseFirestore.instance;
+  final AttendanceSummaryReader _summaryService = AttendanceSummaryReader();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   bool isLoading = false;
   double weeklyPercentage = 0.0;
@@ -16,10 +15,10 @@ class WeeklySummaryController extends ChangeNotifier {
   int totalClasses = 0;
   List<DayAttendance> days = [];
   String? rollNo;
-  
-  // Week selection
+
+  /// Week starts on Monday
   DateTime selectedWeekStart = _getMondayOfWeek(DateTime.now());
-  
+
   static DateTime _getMondayOfWeek(DateTime date) {
     return date.subtract(Duration(days: date.weekday - 1));
   }
@@ -29,107 +28,104 @@ class WeeklySummaryController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Get roll number
+      // Fetch roll number once
       if (rollNo == null) {
         final user = _auth.currentUser;
         if (user == null) {
-          isLoading = false;
-          notifyListeners();
+          _resetAndStop();
           return;
         }
 
         final doc = await _db.collection('students').doc(user.uid).get();
         if (!doc.exists) {
-          isLoading = false;
-          notifyListeners();
+          _resetAndStop();
           return;
         }
 
-        rollNo = doc.data()?['rollno'] ?? '';
+        rollNo = doc.data()?['rollno'] as String? ?? '';
       }
 
       if (rollNo!.isEmpty) {
-        isLoading = false;
-        notifyListeners();
+        _resetAndStop();
         return;
       }
 
-      // Get month summary for selected week
-      final month = DateFormat('yyyy-MM').format(selectedWeekStart);
+      // Fetch monthly summary (week lives inside a month)
+      final monthKey = DateFormat('yyyy-MM').format(selectedWeekStart);
       final summary = await _summaryService.getStudentSummary(
         rollNo: rollNo!,
-        month: month,
+        month: monthKey,
       );
 
       if (summary == null) {
-        days = _generateEmptyWeek();
-        attendedClasses = 0;
-        totalClasses = 0;
-        weeklyPercentage = 0.0;
-        isLoading = false;
-        notifyListeners();
+        _resetAndStop();
         return;
       }
 
-      // Get byDate data
-      final byDate = Map<String, dynamic>.from(summary['byDate'] ?? {});
-      
-      // Generate days for the week (Monday to Saturday)
-      days = [];
+      final Map<String, dynamic> byDate =
+          Map<String, dynamic>.from(summary['byDate'] ?? {});
+
+      days.clear();
+
+      // Monday → Saturday (6 days)
       for (int i = 0; i < 6; i++) {
         final currentDay = selectedWeekStart.add(Duration(days: i));
-        final dateStr = DateFormat('yyyy-MM-dd').format(currentDay);
+        final dateKey = DateFormat('yyyy-MM-dd').format(currentDay);
         final dayName = DateFormat('EEE').format(currentDay);
 
-        final dayData = byDate[dateStr];
         int attended = 0;
         int total = 0;
-        List<PeriodAttendance> periods = [];
+        final List<PeriodAttendance> periods = [];
 
+        final dynamic dayData = byDate[dateKey];
         if (dayData != null) {
-          final dayMap = Map<String, dynamic>.from(dayData);
-          attended = dayMap['present'] ?? 0;
-          total = dayMap['total'] ?? 0;
-          
-          // ✅ Parse period data
-          final periodsMap = Map<String, dynamic>.from(dayMap['periods'] ?? {});
+          final Map<String, dynamic> dayMap =
+              Map<String, dynamic>.from(dayData);
+
+          attended = (dayMap['present'] ?? 0) as int;
+          total = (dayMap['total'] ?? 0) as int;
+
+          final Map<String, dynamic> periodsMap =
+              Map<String, dynamic>.from(dayMap['periods'] ?? {});
+
           final sortedKeys = periodsMap.keys.toList()
             ..sort((a, b) => int.parse(a).compareTo(int.parse(b)));
-          
-          for (final periodKey in sortedKeys) {
-            final periodData = Map<String, dynamic>.from(periodsMap[periodKey]);
-            periods.add(PeriodAttendance(
-              periodNumber: int.parse(periodKey),
-              subject: periodData['subject'] ?? 'Unknown',
-              subjectCode: periodData['subjectCode'] ?? '',
-              isPresent: periodData['isPresent'] ?? false,
-            ));
+
+          for (final key in sortedKeys) {
+            final Map<String, dynamic> periodData =
+                Map<String, dynamic>.from(periodsMap[key]);
+
+            periods.add(
+              PeriodAttendance(
+                periodNumber: int.parse(key),
+                subject: periodData['subject'] ?? 'Unknown',
+                subjectCode: periodData['subjectCode'] ?? '',
+                isPresent: periodData['isPresent'] ?? false,
+              ),
+            );
           }
         }
 
-        days.add(DayAttendance(
-          dayName,
-          attended,
-          total,
-          periods, // ✅ Add periods
-        ));
+        days.add(
+          DayAttendance(dayName, attended, total, periods),
+        );
       }
 
-      // Calculate overall weekly stats
-      attendedClasses = days.fold(0, (sum, day) => sum + day.attended);
-      totalClasses = days.fold(0, (sum, day) => sum + day.total);
-      weeklyPercentage = totalClasses > 0 ? (attendedClasses / totalClasses * 100) : 0.0;
+      // Weekly totals
+      attendedClasses =
+          days.fold<int>(0, (acc, day) => acc + day.attended);
+      totalClasses =
+          days.fold<int>(0, (acc, day) => acc + day.total);
 
-      isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      print('Error loading weekly attendance: $e');
-      days = _generateEmptyWeek();
-      attendedClasses = 0;
-      totalClasses = 0;
-      weeklyPercentage = 0.0;
-      isLoading = false;
-      notifyListeners();
+      weeklyPercentage =
+          totalClasses > 0 ? (attendedClasses / totalClasses * 100) : 0.0;
+
+      _stopLoading();
+    } catch (e, stack) {
+      debugPrint(
+        'WeeklySummaryController.loadWeeklyAttendance error: $e\n$stack',
+      );
+      _resetAndStop();
     }
   }
 
@@ -137,20 +133,22 @@ class WeeklySummaryController extends ChangeNotifier {
     return List.generate(6, (i) {
       final currentDay = selectedWeekStart.add(Duration(days: i));
       final dayName = DateFormat('EEE').format(currentDay);
-      return DayAttendance(dayName, 0, 0, []);
+      return DayAttendance(dayName, 0, 0, const []);
     });
   }
 
   void previousWeek() {
-    selectedWeekStart = selectedWeekStart.subtract(const Duration(days: 7));
+    selectedWeekStart =
+        selectedWeekStart.subtract(const Duration(days: 7));
     loadWeeklyAttendance();
   }
 
   void nextWeek() {
-    final nextWeekStart = selectedWeekStart.add(const Duration(days: 7));
-    if (nextWeekStart.isAfter(_getMondayOfWeek(DateTime.now()))) {
-      return;
-    }
+    final nextWeekStart =
+        selectedWeekStart.add(const Duration(days: 7));
+
+    if (nextWeekStart.isAfter(_getMondayOfWeek(DateTime.now()))) return;
+
     selectedWeekStart = nextWeekStart;
     loadWeeklyAttendance();
   }
@@ -163,23 +161,43 @@ class WeeklySummaryController extends ChangeNotifier {
   }
 
   bool canGoNext() {
-    final nextWeekStart = selectedWeekStart.add(const Duration(days: 7));
+    final nextWeekStart =
+        selectedWeekStart.add(const Duration(days: 7));
     return !nextWeekStart.isAfter(_getMondayOfWeek(DateTime.now()));
   }
 
-  Future<void> refresh() async {
-    await loadWeeklyAttendance();
+  Future<void> refresh() => loadWeeklyAttendance();
+
+  void _resetAndStop() {
+    days = _generateEmptyWeek();
+    attendedClasses = 0;
+    totalClasses = 0;
+    weeklyPercentage = 0.0;
+    _stopLoading();
+  }
+
+  void _stopLoading() {
+    isLoading = false;
+    notifyListeners();
   }
 }
 
-// ✅ Updated DayAttendance with periods
+/// =======================
+/// Models
+/// =======================
+
 class DayAttendance {
   final String day;
   final int attended;
   final int total;
-  final List<PeriodAttendance> periods; // ✅ NEW
+  final List<PeriodAttendance> periods;
 
-  DayAttendance(this.day, this.attended, this.total, this.periods);
+  const DayAttendance(
+    this.day,
+    this.attended,
+    this.total,
+    this.periods,
+  );
 
   double get percentage => total > 0 ? attended / total : 0.0;
 
@@ -190,14 +208,13 @@ class DayAttendance {
   }
 }
 
-// ✅ NEW: Period attendance model (same as Daily)
 class PeriodAttendance {
   final int periodNumber;
   final String subject;
   final String subjectCode;
   final bool isPresent;
 
-  PeriodAttendance({
+  const PeriodAttendance({
     required this.periodNumber,
     required this.subject,
     required this.subjectCode,
@@ -217,7 +234,7 @@ class PeriodAttendance {
     };
     return timings[periodNumber] ?? '$periodNumber:00';
   }
-  
+
   Color get statusColor => isPresent ? Colors.green : Colors.red;
   String get statusText => isPresent ? 'Present' : 'Absent';
 }

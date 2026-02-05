@@ -32,7 +32,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        leading: const BackButton(),
+        automaticallyImplyLeading: false, // Remove back button
         title: const Text("My Profile"),
       ),
       body: controller.isLoading

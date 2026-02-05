@@ -1,6 +1,3 @@
-// lib/services/firestore_unflatten_helper.dart
-import 'package:flutter/foundation.dart';
-
 class FirestoreUnflattenHelper {
   /// Converts a flat Firestore document with dotted keys into a nested map
   /// Example:
@@ -26,26 +23,11 @@ class FirestoreUnflattenHelper {
         current[key] = <String, dynamic>{};
       }
       if (current[key] is! Map<String, dynamic>) {
-        // If it's not a map, convert it
         current[key] = <String, dynamic>{};
       }
       current = current[key] as Map<String, dynamic>;
     }
 
     current[keys.last] = value;
-  }
-
-  /// Debug: Print the structure of a map
-  static void debugPrintStructure(Map<String, dynamic> map, [String prefix = '']) {
-    map.forEach((key, value) {
-      if (value is Map) {
-        debugPrint('$prefix$key: (Map with ${value.length} keys)');
-        debugPrintStructure(value as Map<String, dynamic>, '$prefix  ');
-      } else if (value is List) {
-        debugPrint('$prefix$key: (List with ${value.length} items)');
-      } else {
-        debugPrint('$prefix$key: $value');
-      }
-    });
   }
 }

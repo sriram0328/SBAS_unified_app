@@ -73,14 +73,12 @@ class AttendanceSummaryController extends ChangeNotifier {
         return;
       }
 
-      // Parse overall stats
-      final overall = Map<String, dynamic>.from(summary['overall'] ?? {});
-      totalClasses = overall['totalClasses'] ?? 0;
-      presentClasses = overall['present'] ?? 0;
-      absentClasses = overall['absent'] ?? 0;
-      overallPercentage = totalClasses > 0 
-          ? (presentClasses / totalClasses * 100) 
-          : 0.0;
+        // Parse overall stats
+        final overall = Map<String, dynamic>.from(summary['overall'] ?? {});
+        totalClasses = overall['totalClasses'] ?? 0;
+        presentClasses = overall['present'] ?? 0;
+        absentClasses = totalClasses - presentClasses;
+        overallPercentage = totalClasses == 0 ? 0.0 : (presentClasses / totalClasses) * 100;
 
       // Parse subject stats
       final bySubject = Map<String, dynamic>.from(summary['bySubject'] ?? {});
@@ -106,7 +104,7 @@ class AttendanceSummaryController extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
     } catch (e) {
-      print('Error loading overview: $e');
+      debugPrint('Error loading overview: $e');
       subjects = [];
       overallPercentage = 0.0;
       totalClasses = 0;

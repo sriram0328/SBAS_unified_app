@@ -33,13 +33,10 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // ✅ Check if user is already logged in
     _checkAuthState();
   }
 
-  /// ✅ Check Firebase Auth state and route accordingly
   Future<void> _checkAuthState() async {
-    // Wait for splash animation
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
@@ -47,17 +44,14 @@ class _SplashScreenState extends State<SplashScreen>
     final currentUser = FirebaseAuth.instance.currentUser;
 
     if (currentUser == null) {
-      // ✅ No user logged in → Go to login
       _navigateToLogin();
       return;
     }
 
-    // ✅ User is logged in → Fetch their data
     try {
       final userData = await _fetchUserData(currentUser.uid);
       
       if (userData != null && mounted) {
-        // ✅ Route to appropriate screen based on role
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -65,47 +59,35 @@ class _SplashScreenState extends State<SplashScreen>
           ),
         );
       } else {
-        // ✅ User data not found → Force logout
         await FirebaseAuth.instance.signOut();
         _navigateToLogin();
       }
     } catch (e) {
-      debugPrint('❌ Error checking auth state: $e');
-      // ✅ Error occurred → Go to login
       _navigateToLogin();
     }
   }
 
-  /// ✅ Fetch user data from Firestore
   Future<Map<String, dynamic>?> _fetchUserData(String authUid) async {
     try {
       final db = FirebaseFirestore.instance;
 
-      // Get role from custom claims
       final token = await FirebaseAuth.instance.currentUser!.getIdTokenResult(true);
       final role = token.claims?['role'];
 
-      debugPrint('🔍 Checking auth state for user: $authUid');
-      debugPrint('🔍 Role from claims: $role');
-
       if (role != 'student' && role != 'faculty') {
-        debugPrint('❌ Invalid role: $role');
         return null;
       }
 
-      // Fetch user document
       final collection = role == 'student' ? 'students' : 'faculty';
       final userDoc = await db.collection(collection).doc(authUid).get();
 
       if (!userDoc.exists) {
-        debugPrint('❌ User document not found in $collection');
         return null;
       }
 
       final data = userDoc.data() as Map<String, dynamic>;
       final currentUser = FirebaseAuth.instance.currentUser!;
 
-      // Build userData map
       final result = <String, dynamic>{
         'authUid': authUid,
         'role': role,
@@ -122,7 +104,6 @@ class _SplashScreenState extends State<SplashScreen>
           'phone': data['studentPhone'] ?? '',
           'parentPhone': data['parentPhone'] ?? '',
         });
-        debugPrint('✅ Student data loaded: ${data['name']} (${data['rollno']})');
       }
 
       if (role == 'faculty') {
@@ -132,12 +113,10 @@ class _SplashScreenState extends State<SplashScreen>
           'phone': data['facultyPhone'] ?? '',
           'subjects': data['subjects'] ?? [],
         });
-        debugPrint('✅ Faculty data loaded: ${data['name']} (${data['department']})');
       }
 
       return result;
     } catch (e) {
-      debugPrint('❌ Error fetching user data: $e');
       return null;
     }
   }
@@ -167,7 +146,7 @@ class _SplashScreenState extends State<SplashScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Image.asset(
-                'assets/icon/app_icon.png',
+                'assets/icon/splashicon.png',
                 width: 180,
                 height: 180,
               ),
@@ -192,7 +171,6 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
               const SizedBox(height: 40),
-              // ✅ Loading indicator
               const CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
               ),

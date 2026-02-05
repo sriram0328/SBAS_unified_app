@@ -30,55 +30,72 @@ class _StudentShellState extends State<StudentShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _screens[_currentIndex],
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Container(
-          height: 70,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(
-                icon: Icons.home,
-                label: "Home",
-                index: 0,
-                currentIndex: _currentIndex,
-                onTap: _onTap,
-              ),
-              _NavItem(
-                icon: Icons.badge,
-                label: "ID",
-                index: 1,
-                currentIndex: _currentIndex,
-                onTap: _onTap,
-              ),
-              _NavItem(
-                icon: Icons.event_available,
-                label: "Attendance",
-                index: 2,
-                currentIndex: _currentIndex,
-                onTap: _onTap,
-              ),
-              _NavItem(
-                icon: Icons.person,
-                label: "Profile",
-                index: 3,
-                currentIndex: _currentIndex,
-                onTap: _onTap,
-              ),
-            ],
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        // If system already popped, do nothing
+        if (didPop) return;
+
+        // If not on Home tab, switch to Home instead of exiting
+        if (_currentIndex != 0) {
+          setState(() {
+            _currentIndex = 0;
+          });
+        }
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _screens,
+        ),
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            height: 70,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _NavItem(
+                  icon: Icons.home,
+                  label: "Home",
+                  index: 0,
+                  currentIndex: _currentIndex,
+                  onTap: _onTap,
+                ),
+                _NavItem(
+                  icon: Icons.badge,
+                  label: "ID",
+                  index: 1,
+                  currentIndex: _currentIndex,
+                  onTap: _onTap,
+                ),
+                _NavItem(
+                  icon: Icons.event_available,
+                  label: "Attendance",
+                  index: 2,
+                  currentIndex: _currentIndex,
+                  onTap: _onTap,
+                ),
+                _NavItem(
+                  icon: Icons.person,
+                  label: "Profile",
+                  index: 3,
+                  currentIndex: _currentIndex,
+                  onTap: _onTap,
+                ),
+              ],
+            ),
           ),
         ),
       ),

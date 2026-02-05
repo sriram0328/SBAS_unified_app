@@ -113,7 +113,7 @@ class _DaySection extends StatelessWidget {
             isLast: entry.key == periods.length - 1,
             isCurrentDay: isCurrentDay,
           );
-        }).toList(),
+        }),
       ],
     );
   }

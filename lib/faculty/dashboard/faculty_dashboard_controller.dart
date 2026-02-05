@@ -27,16 +27,13 @@ class FacultyDashboardController extends ChangeNotifier {
   int classesToday = 0;
   List<TodayClass> todayClasses = [];
 
-  // ✅ Sync status: green when synced + connected, orange when not synced or no network
   bool get isSyncing => _isSyncing;
   bool get isCloudSynced => _lastSyncTime != null && _isConnected;
 
   void _initConnectivity() async {
-    // Check initial connectivity
     final result = await _connectivity.checkConnectivity();
     _isConnected = result.first != ConnectivityResult.none;
     
-    // Listen for connectivity changes
     _connectivity.onConnectivityChanged.listen((List<ConnectivityResult> results) {
       final wasConnected = _isConnected;
       _isConnected = results.first != ConnectivityResult.none;
@@ -44,9 +41,7 @@ class FacultyDashboardController extends ChangeNotifier {
       if (_isConnected != wasConnected) {
         notifyListeners();
         
-        // Auto-sync when connection is restored
         if (_isConnected && !wasConnected) {
-          debugPrint('📶 Connection restored, syncing...');
           load();
         }
       }
@@ -54,8 +49,6 @@ class FacultyDashboardController extends ChangeNotifier {
   }
 
   Future<void> load() async {
-    // If it's the first load, show the big spinner. 
-    // If it's a refresh, show the cloud sync animation.
     if (facultyName.isEmpty) {
       isLoading = true;
     } else {
@@ -70,12 +63,9 @@ class FacultyDashboardController extends ChangeNotifier {
       await _loadTodayClasses();
       todayLabel = DateFormat('EEEE, d MMM').format(DateTime.now());
       
-      // ✅ Mark successful sync
       _lastSyncTime = DateTime.now();
     } catch (e) {
       errorMessage = "Failed to load dashboard: ${e.toString()}";
-      debugPrint("❌ Dashboard load error: $e");
-      // ✅ Clear sync time on error
       _lastSyncTime = null;
     } finally {
       isLoading = false;
@@ -93,7 +83,6 @@ class FacultyDashboardController extends ChangeNotifier {
       facultyCode = data['facultyId'] ?? facultyId;
       department = data['department'] ?? '';
     } catch (e) {
-      debugPrint("❌ Profile error: $e");
       rethrow;
     }
   }
@@ -128,19 +117,17 @@ class FacultyDashboardController extends ChangeNotifier {
           year: m['year'] ?? '',
           section: m['section'] ?? '',
           period: m['periodNumber'] ?? 0,
-          periodCount: m['periodCount'] ?? 1, // ✅ NEW
-          isLab: m['isLab'] ?? false, // ✅ NEW
+          periodCount: m['periodCount'] ?? 1,
+          isLab: m['isLab'] ?? false,
           start: m['startTime'] ?? '',
           end: m['endTime'] ?? '',
         );
       }).toList();
       
       classesToday = todayClasses.length;
-      debugPrint('✅ Loaded $classesToday classes for today');
     } catch (e) {
       todayClasses = [];
       classesToday = 0;
-      debugPrint('❌ Error loading today\'s classes: $e');
     }
   }
 
@@ -150,8 +137,8 @@ class FacultyDashboardController extends ChangeNotifier {
 class TodayClass {
   final String subject, branch, year, section, start, end;
   final int period;
-  final int periodCount; // ✅ NEW
-  final bool isLab; // ✅ NEW
+  final int periodCount;
+  final bool isLab;
   
   TodayClass({
     required this.subject,

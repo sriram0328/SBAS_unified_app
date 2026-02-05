@@ -34,10 +34,13 @@ class AttendanceReportController extends ChangeNotifier {
   int presentCount = 0;
   int absentCount = 0;
 
-  List<_Row> get visibleRolls {
+  List<dynamic> get visibleRolls {    //_Row> get visibleRolls { changed to dynamic to avoid type issues in CSV generation
     List<_Row> filtered = _allRows;
-    if (activeFilter == 'present') filtered = filtered.where((e) => e.present).toList();
-    else if (activeFilter == 'absent') filtered = filtered.where((e) => !e.present).toList();
+    if (activeFilter == 'present') {
+      filtered = filtered.where((e) => e.present).toList();
+    } else if (activeFilter == 'absent') {
+      filtered = filtered.where((e) => !e.present).toList();
+    }
 
     if (searchQuery.isNotEmpty) {
       filtered = filtered.where((e) => 

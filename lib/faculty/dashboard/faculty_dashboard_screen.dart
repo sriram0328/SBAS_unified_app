@@ -81,7 +81,7 @@ class _DashboardView extends StatelessWidget {
                         );
                       }
                     } catch (e) {
-                      debugPrint('❌ Logout error: $e');
+                      // Silent fail
                     }
                   }
                 },
@@ -367,8 +367,6 @@ class _SyncIconState extends State<_SyncIcon> with SingleTickerProviderStateMixi
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Show orange when: syncing, not synced, or no network
-    // ✅ Show green when: synced AND connected to network
     final showOrange = widget.isSyncing || !widget.isCloudSynced;
     
     return FadeTransition(

@@ -1,29 +1,23 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 
 class LoginService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Unified login for Student & Faculty
-  /// email = REAL email address
-  /// password = password
   Future<Map<String, dynamic>> login(
     String email,
     String password,
   ) async {
     try {
-      /* ---------- AUTH FIRST ---------- */
       final credential = await _auth.signInWithEmailAndPassword(
-        email: email.trim(), // ✅ REAL email
+        email: email.trim(),
         password: password,
       );
 
       final user = credential.user!;
       final authUid = user.uid;
 
-      /* ---------- ROLE FROM CUSTOM CLAIM ---------- */
       final token = await user.getIdTokenResult(true);
       final role = token.claims?['role'];
 
@@ -32,7 +26,6 @@ class LoginService {
         throw Exception('Invalid role. Contact admin.');
       }
 
-      /* ---------- READ PROFILE BY UID ---------- */
       final collection = role == 'student' ? 'students' : 'faculty';
 
       final userDoc = await _db
@@ -49,7 +42,6 @@ class LoginService {
 
       final data = userDoc.data() as Map<String, dynamic>;
 
-      /* ---------- MAP RESULT ---------- */
       final result = <String, dynamic>{
         'authUid': authUid,
         'role': role,
@@ -77,10 +69,8 @@ class LoginService {
         });
       }
 
-      debugPrint('✅ Login success [$role]: $authUid');
       return result;
     } catch (e) {
-      debugPrint('❌ Login failed: $e');
       rethrow;
     }
   }

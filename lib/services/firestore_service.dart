@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:logger/logger.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final Logger _logger = Logger();
 
   /// ✅ ONE-TIME FETCH of user data
   Future<Map<String, dynamic>?> getUserData(String userId, String role) async {
@@ -13,11 +15,11 @@ class FirestoreService {
       if (docSnap.exists) {
         return docSnap.data();
       } else {
-        print('No user data found for ID: $userId in collection: $collectionName');
+        _logger.i('No user data found for ID: $userId in collection: $collectionName');
         return null;
       }
     } catch (e) {
-      print('Error getting user data: $e');
+      _logger.e('Error getting user data: $e');
       return null;
     }
   }
@@ -33,13 +35,13 @@ class FirestoreService {
           .get();
           
       if (!doc.exists) {
-        print('No timetable found for faculty: $facultyId');
+        _logger.i('No timetable found for faculty: $facultyId');
         return null;
       }
       
       return doc.data();
     } catch (e) {
-      print('Error getting faculty timetable: $e');
+      _logger.e('Error getting faculty timetable: $e');
       return null;
     }
   }

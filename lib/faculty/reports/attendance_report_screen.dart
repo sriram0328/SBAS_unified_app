@@ -8,6 +8,7 @@ import 'attendance_report_controller.dart';
 
 class AttendanceReportScreen extends StatefulWidget {
   final String facultyId;
+
   const AttendanceReportScreen({super.key, required this.facultyId});
 
   @override
@@ -27,7 +28,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     });
   }
 
-  void _rebuild() { if (mounted) setState(() {}); }
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
@@ -62,7 +65,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       await File(filePath).writeAsString(csv);
       await Share.shareXFiles([XFile(filePath)], subject: 'Attendance Report');
       _showSnackBar('CSV Shared successfully');
-    } catch (e) { _showSnackBar('Error: $e'); }
+    } catch (e) {
+      _showSnackBar('Error: $e');
+    }
   }
 
   Future<void> _downloadPDF() async {
@@ -86,14 +91,31 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       await File(filePath).writeAsBytes(await pdf.save());
       await Share.shareXFiles([XFile(filePath)], subject: 'Attendance Report');
       _showSnackBar('PDF Shared successfully');
-    } catch (e) { _showSnackBar('Error: $e'); }
+    } catch (e) {
+      _showSnackBar('Error: $e');
+    }
   }
 
   void _showDownloadOptions() {
-    showModalBottomSheet(context: context, builder: (context) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      ListTile(leading: const Icon(Icons.description), title: const Text('CSV'), onTap: () { Navigator.pop(context); _downloadCSV(); }),
-      ListTile(leading: const Icon(Icons.picture_as_pdf), title: const Text('PDF'), onTap: () { Navigator.pop(context); _downloadPDF(); }),
-    ])));
+    showModalBottomSheet(
+        context: context,
+        builder: (context) => SafeArea(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ListTile(
+                  leading: const Icon(Icons.description),
+                  title: const Text('CSV'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _downloadCSV();
+                  }),
+              ListTile(
+                  leading: const Icon(Icons.picture_as_pdf),
+                  title: const Text('PDF'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _downloadPDF();
+                  }),
+            ])));
   }
 
   @override
@@ -112,17 +134,13 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.file_download_outlined), 
-            onPressed: controller.isLoading || controller.totalCount == 0 ? null : _showDownloadOptions
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded), 
-            onPressed: controller.isLoading ? null : controller.refresh
-          ),
+              icon: const Icon(Icons.file_download_outlined),
+              onPressed: controller.isLoading || controller.totalCount == 0 ? null : _showDownloadOptions),
+          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: controller.isLoading ? null : controller.refresh),
         ],
       ),
-      body: controller.isInitializing 
-          ? const Center(child: CircularProgressIndicator()) 
+      body: controller.isInitializing
+          ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
                 _buildFilters(),
@@ -138,43 +156,39 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
   Widget _buildFilters() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Column(
         children: [
           Row(
             children: [
               Expanded(
-                child: Stack(
-                  alignment: Alignment.centerRight,
-                  children: [
-                    _dropdownField(controller.dates, controller.date, 'Date', (v) => controller.updateFilter(dateValue: v)),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 35),
-                      child: IconButton(
-                        icon: const Icon(Icons.calendar_month_outlined, size: 20, color: Colors.blue),
-                        onPressed: _pickDate,
-                      ),
-                    ),
-                  ],
+                flex: 3,
+                child: GestureDetector(
+                  onTap: _pickDate,
+                  child: AbsorbPointer(
+                    child: _dropdownField(controller.dates, controller.date, 'Date', (v) {}),
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(child: _dropdownField(controller.subjects, controller.subject, 'Subject', (v) => controller.updateFilter(subjectValue: v))),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 4,
+                child: _dropdownField(controller.subjects, controller.subject, 'Subject', (v) => controller.updateFilter(subjectValue: v)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: _dropdownField(controller.years, controller.year, 'Yr', (v) => controller.updateFilter(yearValue: v)),
+              ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: _dropdownField(controller.years, controller.year, 'Year', (v) => controller.updateFilter(yearValue: v))),
-              const SizedBox(width: 10),
               Expanded(child: _dropdownField(controller.branches, controller.branch, 'Branch', (v) => controller.updateFilter(branchValue: v))),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
+              const SizedBox(width: 8),
               Expanded(child: _dropdownField(controller.sections, controller.section, 'Section', (v) => controller.updateFilter(sectionValue: v))),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(child: _dropdownField(controller.periods.map((e) => e.toString()).toList(), controller.period?.toString(), 'Period', (v) => controller.updateFilter(periodValue: int.tryParse(v)))),
             ],
           ),
@@ -187,28 +201,40 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     return DropdownButtonFormField<String>(
       initialValue: (items.contains(value)) ? value : null,
       isExpanded: true,
+      menuMaxHeight: 250,
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: const TextStyle(fontSize: 12),
         filled: true,
-        // Fix: Updated withOpacity to withValues for latest Flutter
         fillColor: Colors.blueGrey[50]?.withValues(alpha: 0.5),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
       ),
-      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis))).toList(),
-      onChanged: (v) { if (v != null) onChanged(v); },
+      dropdownColor: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      elevation: 8,
+      items: items
+          .map((e) => DropdownMenuItem(
+              value: e, 
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(e, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+              )))
+          .toList(),
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
     );
   }
 
   Widget _buildStatsCard() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        // Fix: Updated withOpacity to withValues for latest Flutter
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -224,29 +250,25 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   Widget _statItem(String label, String value, Color color) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 4),
-        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 2),
+        Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
       ],
     );
   }
 
   Widget _buildSmoothScrollPills() {
     return SizedBox(
-      height: 50,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            _pillItem('all', 'All'),
-            const SizedBox(width: 10),
-            _pillItem('present', 'Present'),
-            const SizedBox(width: 10),
-            _pillItem('absent', 'Absent'),
-          ],
-        ),
+      height: 40,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _pillItem('all', 'All'),
+          const SizedBox(width: 8),
+          _pillItem('present', 'Present'),
+          const SizedBox(width: 8),
+          _pillItem('absent', 'Absent'),
+        ],
       ),
     );
   }
@@ -258,14 +280,14 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
         decoration: BoxDecoration(
           color: isSelected ? Colors.blue : Colors.grey[100],
-          borderRadius: BorderRadius.circular(25),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           label,
-          style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.w600, fontSize: 14),
+          style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.w600, fontSize: 13),
         ),
       ),
     );
@@ -273,16 +295,17 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
       child: TextField(
         onChanged: (value) => controller.setSearchQuery(value),
         decoration: InputDecoration(
           hintText: 'Search roll number or name...',
-          prefixIcon: const Icon(Icons.search, color: Colors.grey),
+          hintStyle: const TextStyle(fontSize: 13),
+          prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
           filled: true,
           fillColor: Colors.grey[100],
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(vertical: 8),
         ),
       ),
     );
@@ -290,6 +313,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
   Widget _buildList() {
     if (controller.isLoading) return const Center(child: CircularProgressIndicator());
+
     final rows = controller.visibleRolls;
     if (rows.isEmpty) return const Center(child: Text('No records found', style: TextStyle(color: Colors.grey)));
 

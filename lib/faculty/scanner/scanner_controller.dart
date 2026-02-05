@@ -11,10 +11,11 @@ class ScannerController {
   bool showErrorPopup = false;
   String lastScanned = '';
   bool isFlashOn = false; 
-
-  ScannerController({
+  
+  ScannerController({required this.enrolledStudentIds});
+  /*ScannerController({
     required Set<String> enrolledStudentIds,
-  }) : enrolledStudentIds = enrolledStudentIds;
+  }) : enrolledStudentIds = enrolledStudentIds;*/
 
   int get scannedCount => _presentStudentIds.length;
   Set<String> get presentStudentIds => _presentStudentIds;

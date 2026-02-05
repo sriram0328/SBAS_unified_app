@@ -8,10 +8,8 @@ class StudentIdController extends ChangeNotifier {
 
   bool isLoading = true;
 
-  // Institution
-  String institutionName = "INSTITUTION NAME";
+  String institutionName = "DVR & Dr. HS MIC College of Technology";
 
-  // Student Info
   String studentName = "";
   String role = "Student";
   String rollNo = "";
@@ -19,15 +17,10 @@ class StudentIdController extends ChangeNotifier {
   String section = "";
   String year = "";
 
-  /// Barcode value (same as React logic)
   String get barcodeData => rollNo;
 
-  /// Branch & section display
   String get branchDisplay => "$branch - $section";
 
-  /// ----------------------------
-  /// LOAD STUDENT ID DATA
-  /// ----------------------------
   Future<void> loadStudentData() async {
     try {
       isLoading = true;
@@ -38,7 +31,6 @@ class StudentIdController extends ChangeNotifier {
         throw Exception("User not logged in");
       }
 
-      /// 1️⃣ Fetch student document
       final studentDoc =
           await _db.collection('students').doc(user.uid).get();
 
@@ -52,7 +44,6 @@ class StudentIdController extends ChangeNotifier {
       branch = studentData['branch'] ?? '';
       section = studentData['section'] ?? '';
 
-      /// 2️⃣ Fetch academic record for YEAR
       final academicSnap = await _db
           .collection('academic_records')
           .where('studentId', isEqualTo: user.uid)
@@ -69,7 +60,6 @@ class StudentIdController extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
     } catch (e) {
-      debugPrint("Error loading ID data: $e");
       isLoading = false;
       notifyListeners();
     }

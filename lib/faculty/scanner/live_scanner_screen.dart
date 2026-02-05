@@ -69,74 +69,18 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
       ),
       builder: (context) {
         final presentList = controller.presentStudentIds.toList()..sort();
+        final absentList = widget.enrolledStudentIds
+            .where((id) => !controller.presentStudentIds.contains(id))
+            .toList()..sort();
         
-        return DraggableScrollableSheet(
-          initialChildSize: 0.5,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) => Column(
-            children: [
-              const SizedBox(height: 12),
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    const Text("Attendance Report", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    const Spacer(),
-                    Text("${presentList.length} Scanned", 
-                      style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemCount: presentList.length,
-                  itemBuilder: (context, i) => ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.blue[50], 
-                      child: const Icon(Icons.person, color: Colors.blueAccent, size: 20)
-                    ),
-                    title: Text(presentList[i], style: const TextStyle(fontWeight: FontWeight.w600)),
-                    trailing: const Icon(Icons.check_circle, color: Colors.green, size: 20),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () => Navigator.pop(context), 
-                        child: const Text("Rescan More"),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: widget.isLab ? Colors.purple : const Color(0xFF2962FF),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () {
-                          Navigator.pop(context); 
-                          _handleSubmit(); 
-                        },
-                        child: const Text("Submit", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        return _AttendanceReportSheet(
+          presentList: presentList,
+          absentList: absentList,
+          isLab: widget.isLab,
+          onSubmit: () {
+            Navigator.pop(context);
+            _handleSubmit();
+          },
         );
       },
     );
@@ -332,13 +276,257 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
   }
 }
 
+// ✅ NEW: Stateful widget for the attendance report with filter tabs
+class _AttendanceReportSheet extends StatefulWidget {
+  final List<String> presentList;
+  final List<String> absentList;
+  final bool isLab;
+  final VoidCallback onSubmit;
+
+  const _AttendanceReportSheet({
+    required this.presentList,
+    required this.absentList,
+    required this.isLab,
+    required this.onSubmit,
+  });
+
+  @override
+  State<_AttendanceReportSheet> createState() => _AttendanceReportSheetState();
+}
+
+class _AttendanceReportSheetState extends State<_AttendanceReportSheet> {
+  int _selectedFilter = 0; // 0: All, 1: Present, 2: Absent
+
+  @override
+  Widget build(BuildContext context) {
+    List<String> filteredList;
+    switch (_selectedFilter) {
+      case 1: // Present only
+        filteredList = widget.presentList;
+        break;
+      case 2: // Absent only
+        filteredList = widget.absentList;
+        break;
+      default: // All
+        filteredList = [...widget.presentList, ...widget.absentList];
+    }
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.5,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) => Column(
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                const Text(
+                  "Attendance Report",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      "${widget.presentList.length} Present",
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      "${widget.absentList.length} Absent",
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Filter Tabs
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                _FilterChip(
+                  label: 'All (${widget.presentList.length + widget.absentList.length})',
+                  isSelected: _selectedFilter == 0,
+                  onTap: () => setState(() => _selectedFilter = 0),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'Present (${widget.presentList.length})',
+                  isSelected: _selectedFilter == 1,
+                  color: Colors.green,
+                  onTap: () => setState(() => _selectedFilter = 1),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'Absent (${widget.absentList.length})',
+                  isSelected: _selectedFilter == 2,
+                  color: Colors.red,
+                  onTap: () => setState(() => _selectedFilter = 2),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Student List
+          Expanded(
+            child: ListView.builder(
+              controller: scrollController,
+              itemCount: filteredList.length,
+              itemBuilder: (context, i) {
+                final studentId = filteredList[i];
+                final isPresent = widget.presentList.contains(studentId);
+
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isPresent ? Colors.green[50] : Colors.red[50],
+                    child: Icon(
+                      isPresent ? Icons.person : Icons.person_outline,
+                      color: isPresent ? Colors.green : Colors.red,
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(
+                    studentId,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isPresent ? Colors.black : Colors.grey[700],
+                    ),
+                  ),
+                  trailing: Icon(
+                    isPresent ? Icons.check_circle : Icons.cancel,
+                    color: isPresent ? Colors.green : Colors.red,
+                    size: 20,
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // Action Buttons
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Rescan More"),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: widget.isLab ? Colors.purple : const Color(0xFF2962FF),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: widget.onSubmit,
+                    child: const Text(
+                      "Submit",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ✅ NEW: Filter chip widget
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final Color? color;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.isSelected,
+    this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final chipColor = color ?? Colors.blue;
+    
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? chipColor.withValues(alpha: 0.1) : Colors.grey[100],
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? chipColor : Colors.grey[300]!,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected ? chipColor : Colors.grey[600],
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ScannerOverlayPainter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     double size = MediaQuery.of(context).size.width * 0.7;
     return Stack(
       children: [
-        ColorFiltered(
+        ColorFiltered(                                                                                   
           colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.6), BlendMode.srcOut),
           child: Stack(
             children: [

@@ -133,7 +133,6 @@ class _MainContent extends StatelessWidget {
                 ),
               )
             else
-              // ✅ FIX: Show full display names including Lab/Theory distinction
               _buildDropdown(
                 label: 'Subject',
                 icon: Icons.book_outlined,
@@ -217,8 +216,9 @@ class _MainContent extends StatelessWidget {
     return Opacity(
       opacity: enabled ? 1.0 : 0.5,
       child: DropdownButtonFormField<String>(
-        value: (items.contains(value)) ? value : null,
+        initialValue: (items.contains(value)) ? value : null,
         isExpanded: true,
+        menuMaxHeight: 300,
         style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.w500),
         decoration: InputDecoration(
           labelText: label,
@@ -240,7 +240,16 @@ class _MainContent extends StatelessWidget {
             borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5),
           ),
         ),
-        items: items.map((e) => DropdownMenuItem(value: e, child: Text(e, overflow: TextOverflow.ellipsis))).toList(),
+        dropdownColor: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        elevation: 8,
+        items: items.map((e) => DropdownMenuItem(
+          value: e, 
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(e, overflow: TextOverflow.ellipsis),
+          )
+        )).toList(),
         onChanged: enabled ? onChanged : null,
       ),
     );

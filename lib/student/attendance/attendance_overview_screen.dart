@@ -37,7 +37,7 @@ class _AttendanceOverviewScreenState extends State<AttendanceOverviewScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: const BackButton(color: Colors.black),
+        automaticallyImplyLeading: false, // Remove back button
         title: const Text(
           "Attendance",
           style: TextStyle(
@@ -123,7 +123,7 @@ class _AttendanceOverviewScreenState extends State<AttendanceOverviewScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    "${_controller.overallPercentage.toInt()}%",
+                                    "${_controller.overallPercentage.round()}%",
                                     style: const TextStyle(
                                       fontSize: 32,
                                       fontWeight: FontWeight.bold,

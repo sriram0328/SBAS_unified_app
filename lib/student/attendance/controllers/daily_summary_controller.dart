@@ -106,7 +106,7 @@ class DailySummaryController extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
     } catch (e) {
-      print('Error loading daily: $e');
+      debugPrint('Error loading daily: $e');
       presentCount = 0;
       absentCount = 0;
       totalCount = 0;

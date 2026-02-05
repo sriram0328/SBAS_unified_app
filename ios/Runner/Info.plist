@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>This app requires camera access to scan barcodes for attendance marking.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app may need to access your photo library for ID card generation.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>This app may need to save photos to your library.</string>
 </dict>
 </plist>

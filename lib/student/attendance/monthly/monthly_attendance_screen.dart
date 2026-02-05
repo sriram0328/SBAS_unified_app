@@ -76,7 +76,7 @@ class _MonthlyAttendanceViewState extends State<MonthlyAttendanceView> {
                         ),
                         Center(
                           child: Text(
-                            "${(_controller.getMonthlyPercentage() * 100).toInt()}%",
+                            "${(_controller.getMonthlyPercentage() * 100).round()}%",
                             style: const TextStyle(
                               color: Color(0xFF2196F3),
                               fontWeight: FontWeight.bold,

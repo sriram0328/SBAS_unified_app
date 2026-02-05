@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '/services/firestore_unflatten_helper.dart';
 
 class StudentDashboardController extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -16,7 +17,12 @@ class StudentDashboardController extends ChangeNotifier {
   String section = "";
   String yearOfStudy = "";
   String department = "";
+
+  // Attendance (CURRENT MONTH)
   double attendancePercentage = 0.0;
+  int totalClasses = 0;
+  int presentClasses = 0;
+  int absentClasses = 0;
 
   /// ----------------------------
   /// LOAD DASHBOARD DATA
@@ -27,9 +33,11 @@ class StudentDashboardController extends ChangeNotifier {
       notifyListeners();
 
       final user = _auth.currentUser;
-      if (user == null) throw Exception("User not logged in");
+      if (user == null) {
+        throw Exception("User not logged in");
+      }
 
-      /// 1️⃣ Fetch student document
+      // 1️⃣ Fetch student document
       final studentDoc =
           await _firestore.collection('students').doc(user.uid).get();
 
@@ -44,7 +52,7 @@ class StudentDashboardController extends ChangeNotifier {
       section = studentData['section'] ?? '';
       department = _getDepartmentName(branch);
 
-      /// 2️⃣ Fetch academic record (year)
+      // 2️⃣ Fetch academic record
       final academicSnap = await _firestore
           .collection('academic_records')
           .where('studentId', isEqualTo: user.uid)
@@ -57,7 +65,7 @@ class StudentDashboardController extends ChangeNotifier {
             academicSnap.docs.first.data()['yearOfStudy'].toString();
       }
 
-      /// 3️⃣ Calculate attendance %
+      // 3️⃣ Load CURRENT MONTH attendance
       await _calculateAttendance();
 
       isLoading = false;
@@ -70,48 +78,55 @@ class StudentDashboardController extends ChangeNotifier {
   }
 
   /// ----------------------------
-  /// ATTENDANCE CALCULATION (FIXED)
+  /// CURRENT MONTH ATTENDANCE
   /// ----------------------------
   Future<void> _calculateAttendance() async {
     if (rollNo.isEmpty) {
       attendancePercentage = 0;
+      totalClasses = 0;
+      presentClasses = 0;
+      absentClasses = 0;
       return;
     }
 
     try {
-      // Query only attendance records where this student is enrolled
-      final attendanceSnap = await _firestore
-          .collection('attendance')
-          .where('enrolledStudentIds', arrayContains: rollNo)
+      final now = DateTime.now();
+      final monthKey =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}';
+      final docId = '${rollNo}_$monthKey';
+
+      final doc = await _firestore
+          .collection('attendance_summaries')
+          .doc(docId)
           .get();
 
-      int totalClasses = 0;
-      int presentCount = 0;
-
-      for (var doc in attendanceSnap.docs) {
-        final data = doc.data();
-        
-        // Get the enrolled and present lists
-        final List<dynamic> enrolledList = data['enrolledStudentIds'] ?? [];
-        final List<dynamic> presentList = data['presentStudentIds'] ?? [];
-
-        // Only count classes where student is enrolled
-        if (enrolledList.contains(rollNo)) {
-          totalClasses++;
-          
-          // Check if student was present
-          if (presentList.contains(rollNo)) {
-            presentCount++;
-          }
-        }
+      if (!doc.exists) {
+        attendancePercentage = 0;
+        totalClasses = 0;
+        presentClasses = 0;
+        absentClasses = 0;
+        return;
       }
 
-      // Calculate percentage
+      // 🔥 CRITICAL FIX: UNFLATTEN FIRESTORE DATA
+      final rawData = doc.data()!;
+      final data = FirestoreUnflattenHelper.unflatten(rawData);
+
+      final overall = Map<String, dynamic>.from(data['overall'] ?? {});
+      totalClasses = overall['totalClasses'] ?? 0;
+      presentClasses = overall['present'] ?? 0;
+      absentClasses = totalClasses - presentClasses;
+
       attendancePercentage =
-          totalClasses == 0 ? 0 : (presentCount / totalClasses) * 100;
+          totalClasses == 0 ? 0.0 : (presentClasses / totalClasses) * 100;
+      
+      debugPrint('✅ Dashboard Attendance: $presentClasses/$totalClasses = ${attendancePercentage.toStringAsFixed(2)}%');
     } catch (e) {
-      print('Error calculating attendance: $e');
+      debugPrint('Error loading dashboard attendance: $e');
       attendancePercentage = 0;
+      totalClasses = 0;
+      presentClasses = 0;
+      absentClasses = 0;
     }
   }
 

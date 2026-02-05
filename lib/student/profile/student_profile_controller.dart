@@ -64,14 +64,14 @@ class StudentProfileController extends ChangeNotifier {
           year = '';
         }
       } catch (e) {
-        print('Error fetching academic records: $e');
+        debugPrint('Error fetching academic records: $e');
         year = '';
       }
 
       isLoading = false;
       notifyListeners();
     } catch (e) {
-      print('Error loading student data: $e');
+      debugPrint('Error loading student data: $e');
       isLoading = false;
       notifyListeners();
     }

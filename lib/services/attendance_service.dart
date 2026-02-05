@@ -1,12 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 
 class AttendanceService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// ======================================================
-  /// MAIN ENTRY POINT
-  /// ======================================================
   Future<void> createAttendance({
     required String facultyId,
     required int periodNumber,
@@ -42,25 +38,14 @@ class AttendanceService {
     };
 
     try {
-      // 1️⃣ Raw attendance
       await _db.collection('attendance').add(attendanceData);
-
-      // 2️⃣ Student summaries (batch-safe)
       await _updateStudentSummaries(attendanceData);
-
-      // 3️⃣ Class summary (transaction-safe)
       await _updateClassSummary(attendanceData);
-
-      debugPrint('✅ Attendance + summaries updated correctly');
     } catch (e) {
-      debugPrint('❌ Attendance failed: $e');
       rethrow;
     }
   }
 
-  /// ======================================================
-  /// STUDENT SUMMARIES (BATCH IS SAFE HERE)
-  /// ======================================================
   Future<void> _updateStudentSummaries(Map<String, dynamic> a) async {
     final batch = _db.batch();
 
@@ -131,9 +116,6 @@ class AttendanceService {
     await batch.commit();
   }
 
-  /// ======================================================
-  /// CLASS SUMMARY (TRANSACTION — CRITICAL FIX)
-  /// ======================================================
   Future<void> _updateClassSummary(Map<String, dynamic> a) async {
     final String date = a['date'];
     final String month = a['month'];
