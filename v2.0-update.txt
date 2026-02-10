@@ -1,0 +1,21 @@
+1. Period hour drop-downs 1 or 2
+2. Academic year is fetched during load enrolled students for checking detained/rejoin students and give perfect list
+3. Minor change in report screen. Yr --> Year UI change 
+4. Bug Fix - If lab is selected it doesnt have any constraint. We can select 7th period and it marks for P7,8,9 which are not even exist in our system.
+5. Fixed Firebase_auth/service request that displays errors directly from firestore. now updated to Invalid credentials,etc.
+6. Added await before _attendanceService.createAttendance() to ensure it completes before navigating back
+
+
+After adding billing account update attendance service , change updating student and class summaries to the cloud functions.
+
+
+
+Error : 
+2 AIML A  attendance summaries ,class summaries not updated!
+2 AIML B class summaries updated but not visible in long reports
+Reason : deenakka firebase lo trim() add chesa daani valla existing data effect ayyindi anukunta
+Fix : Existing A,B records delete chesesa, malli A ki B ki attendance teeskoni try chesa ippudu update ayyayi.
+
+
+Minor Error : Can be neglected. Fac dashboard - bottom navbar - reports - back button - blank screen 
+But back gesture works fine, Quick actions Back button works

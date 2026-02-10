@@ -1,4 +1,5 @@
 // lib/faculty/scanner/live_scanner_screen.dart
+// Added await before _attendanceService.createAttendance() to ensure it completes before navigating back
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -86,38 +87,59 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
     );
   }
 
-  // OPTIMIZED SUBMISSION logic to cut down wait time
+  // ✅ FIXED: Now properly awaits the service completion
   Future<void> _handleSubmit() async {
     setState(() { 
       controller.isProcessing = true; 
     });
 
-    // ✅ Pass periodCount and isLab to the service
-    _attendanceService.createAttendance(
-      facultyId: widget.facultyId,
-      periodNumber: widget.periodNumber,
-      periodCount: widget.periodCount,    // ✅ NOW PASSED
-      isLab: widget.isLab,                // ✅ NOW PASSED
-      year: widget.year,
-      branch: widget.branch,
-      section: widget.section,
-      subjectCode: widget.subjectCode,
-      subjectName: widget.subjectName,
-      enrolledStudentIds: widget.enrolledStudentIds,
-      presentStudentIds: controller.presentStudentIds.toList(),
-    );
-
-    cameraController.stop();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(widget.isLab ? 'Lab Attendance Saved (Syncing...)' : 'Attendance Saved (Syncing...)'),
-          backgroundColor: widget.isLab ? Colors.purple : Colors.blueAccent,
-          duration: const Duration(seconds: 2),
-        ),
+    try {
+      // ✅ CRITICAL FIX: Add 'await' to ensure completion before navigation
+      await _attendanceService.createAttendance(
+        facultyId: widget.facultyId,
+        periodNumber: widget.periodNumber,
+        periodCount: widget.periodCount,
+        isLab: widget.isLab,
+        year: widget.year,
+        branch: widget.branch,
+        section: widget.section,
+        subjectCode: widget.subjectCode,
+        subjectName: widget.subjectName,
+        enrolledStudentIds: widget.enrolledStudentIds,
+        presentStudentIds: controller.presentStudentIds.toList(),
       );
-      Navigator.of(context).pop(); 
+
+      cameraController.stop();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.isLab 
+                ? 'Lab Attendance Submitted Successfully!' 
+                : 'Attendance Submitted Successfully!'
+            ),
+            backgroundColor: widget.isLab ? Colors.purple : Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        Navigator.of(context).pop(); 
+      }
+    } catch (e) {
+      // ✅ BONUS: Error handling
+      if (mounted) {
+        setState(() {
+          controller.isProcessing = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting attendance: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -170,7 +192,10 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
               ),
               child: Row(
                 children: [
-                  IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white), 
+                    onPressed: () => Navigator.pop(context)
+                  ),
                   const Spacer(),
                   Column(
                     mainAxisSize: MainAxisSize.min,
@@ -182,7 +207,14 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
                             const Icon(Icons.science_outlined, color: Colors.white, size: 16),
                             const SizedBox(width: 6),
                           ],
-                          Text(widget.subjectName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text(
+                            widget.subjectName, 
+                            style: const TextStyle(
+                              color: Colors.white, 
+                              fontWeight: FontWeight.bold, 
+                              fontSize: 16
+                            )
+                          ),
                         ],
                       ),
                       Text(
@@ -195,8 +227,15 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: Icon(controller.isFlashOn ? Icons.flash_on : Icons.flash_off, color: Colors.white),
-                    onPressed: () { controller.toggleFlash(); cameraController.toggleTorch(); _refresh(); }
+                    icon: Icon(
+                      controller.isFlashOn ? Icons.flash_on : Icons.flash_off, 
+                      color: Colors.white
+                    ),
+                    onPressed: () { 
+                      controller.toggleFlash(); 
+                      cameraController.toggleTorch(); 
+                      _refresh(); 
+                    }
                   ),
                 ],
               ),
@@ -223,7 +262,11 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
                 child: Text(
                   controller.lastScannedText, 
                   textAlign: TextAlign.center, 
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  style: const TextStyle(
+                    color: Colors.white, 
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 14
+                  ),
                 ),
               ),
             ),
@@ -248,7 +291,11 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
                 child: Text(
                   controller.lastScannedText, 
                   textAlign: TextAlign.center, 
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  style: const TextStyle(
+                    color: Colors.white, 
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 14
+                  ),
                 ),
               ),
             ),
@@ -260,13 +307,22 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: accentColor,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15)
+                  ),
                 ),
-                onPressed: controller.scannedCount == 0 || controller.isProcessing ? null : _showAttendanceReport,
+                onPressed: controller.scannedCount == 0 || controller.isProcessing 
+                  ? null 
+                  : _showAttendanceReport,
                 child: controller.isProcessing 
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : Text('Review & Submit (${controller.scannedCount})', 
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  : Text(
+                      'Review & Submit (${controller.scannedCount})', 
+                      style: const TextStyle(
+                        color: Colors.white, 
+                        fontWeight: FontWeight.bold
+                      )
+                    ),
               ),
             ),
           ),
@@ -276,7 +332,7 @@ class _LiveScannerScreenState extends State<LiveScannerScreen> {
   }
 }
 
-// ✅ NEW: Stateful widget for the attendance report with filter tabs
+// ✅ Stateful widget for the attendance report with filter tabs
 class _AttendanceReportSheet extends StatefulWidget {
   final List<String> presentList;
   final List<String> absentList;
@@ -448,7 +504,9 @@ class _AttendanceReportSheetState extends State<_AttendanceReportSheet> {
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: widget.isLab ? Colors.purple : const Color(0xFF2962FF),
+                      backgroundColor: widget.isLab 
+                        ? Colors.purple 
+                        : const Color(0xFF2962FF),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -473,7 +531,7 @@ class _AttendanceReportSheetState extends State<_AttendanceReportSheet> {
   }
 }
 
-// ✅ NEW: Filter chip widget
+// ✅ Filter chip widget
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool isSelected;
@@ -498,7 +556,9 @@ class _FilterChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
           decoration: BoxDecoration(
-            color: isSelected ? chipColor.withValues(alpha: 0.1) : Colors.grey[100],
+            color: isSelected 
+              ? chipColor.withValues(alpha: 0.1) 
+              : Colors.grey[100],
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: isSelected ? chipColor : Colors.grey[300]!,
@@ -526,16 +586,47 @@ class _ScannerOverlayPainter extends StatelessWidget {
     double size = MediaQuery.of(context).size.width * 0.7;
     return Stack(
       children: [
-        ColorFiltered(                                                                                   
-          colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.6), BlendMode.srcOut),
+        ColorFiltered(
+          colorFilter: ColorFilter.mode(
+            Colors.black.withValues(alpha: 0.6), 
+            BlendMode.srcOut
+          ),
           child: Stack(
             children: [
-              Container(decoration: const BoxDecoration(color: Colors.black, backgroundBlendMode: BlendMode.dstOut)),
-              Align(alignment: Alignment.center, child: Container(width: size, height: size * 0.6, decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(20)))),
+              Container(
+                decoration: const BoxDecoration(
+                  color: Colors.black, 
+                  backgroundBlendMode: BlendMode.dstOut
+                )
+              ),
+              Align(
+                alignment: Alignment.center, 
+                child: Container(
+                  width: size, 
+                  height: size * 0.6, 
+                  decoration: BoxDecoration(
+                    color: Colors.red, 
+                    borderRadius: BorderRadius.circular(20)
+                  )
+                )
+              ),
             ],
           ),
         ),
-        Align(alignment: Alignment.center, child: Container(width: size, height: size * 0.6, decoration: BoxDecoration(border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2), borderRadius: BorderRadius.circular(20)))),
+        Align(
+          alignment: Alignment.center, 
+          child: Container(
+            width: size, 
+            height: size * 0.6, 
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.5), 
+                width: 2
+              ), 
+              borderRadius: BorderRadius.circular(20)
+            )
+          )
+        ),
       ],
     );
   }

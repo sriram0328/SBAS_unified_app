@@ -169,13 +169,59 @@ class _MainContent extends StatelessWidget {
               ),
             ],
             
+            // Show period count selector for THEORY classes
+            if (!c.isLab && c.selectedSubjectDisplay != null) ...[
+              const SizedBox(height: 16),
+              _buildStepLabel('3', 'SELECT NUMBER OF PERIODS'),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _PeriodCountSelector(
+                      selected: c.selectedTheoryPeriodCount,
+                      onSelect: (count) => c.selectTheoryPeriodCount(count),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            
             const SizedBox(height: 32),
           ],
           
-          // STEP 3: Select Period (appears after subject is selected)
+          // STEP 3/4: Select Period (appears after subject is selected)
           if (c.selectedSubjectDisplay != null) ...[
-            _buildStepLabel('3', 'SELECT STARTING PERIOD'),
-            const SizedBox(height: 16),
+            _buildStepLabel(
+              c.isLab ? '3' : '4', 
+              'SELECT STARTING PERIOD'
+            ),
+            const SizedBox(height: 12),
+            
+            // Show overflow warning for multi-period classes
+            if (c.effectivePeriodCount > 1) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.blue, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'This ${c.isLab ? 'lab' : 'class'} needs ${c.effectivePeriodCount} consecutive periods. Invalid periods are disabled.',
+                        style: const TextStyle(color: Colors.blue, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            
             _buildPeriodGrid(),
             const SizedBox(height: 40),
             _buildProceedButton(context),
@@ -271,24 +317,31 @@ class _MainContent extends StatelessWidget {
         bool isSelected = c.selectedPeriodNumber == p;
         bool isLocked = c.lockedPeriods.contains(p);
         
-        // Show which periods will be covered for labs
-        bool isCovered = c.isLab && c.selectedPeriodNumber != 0 && 
+        // Check if this period would cause overflow
+        bool isOverflow = c.isPeriodOverflow(p);
+        
+        // Show which periods will be covered (for both lab and multi-period theory)
+        final effectiveCount = c.effectivePeriodCount;
+        bool isCovered = effectiveCount > 1 && c.selectedPeriodNumber != 0 && 
                          p >= c.selectedPeriodNumber && 
-                         p < c.selectedPeriodNumber + c.periodCount;
+                         p < c.selectedPeriodNumber + effectiveCount;
+        
+        // Disable if locked OR would overflow
+        bool isDisabled = isLocked || isOverflow;
         
         return GestureDetector(
-          onTap: isLocked ? null : () => c.setPeriodNumber(p),
+          onTap: isDisabled ? null : () => c.setPeriodNumber(p),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
-              color: isLocked
+              color: isDisabled
                   ? Colors.grey.shade300
                   : (isSelected 
                       ? (c.isLab ? Colors.purple : Colors.blueAccent)
                       : (isCovered ? (c.isLab ? Colors.purple.withValues(alpha: 0.2) : Colors.blueAccent.withValues(alpha: 0.2)) : Colors.white)),
               borderRadius: BorderRadius.circular(15),
               border: Border.all(
-                color: isLocked
+                color: isDisabled
                     ? Colors.grey.shade400
                     : (isSelected 
                         ? (c.isLab ? Colors.purple : Colors.blueAccent)
@@ -309,9 +362,13 @@ class _MainContent extends StatelessWidget {
                 Icon(
                   isLocked
                       ? Icons.lock_outline
-                      : (c.isLab && (isSelected || isCovered) ? Icons.science_outlined : Icons.access_time_filled_rounded),
+                      : (isOverflow
+                          ? Icons.block_outlined
+                          : ((c.isLab || effectiveCount > 1) && (isSelected || isCovered) 
+                              ? (c.isLab ? Icons.science_outlined : Icons.schedule_outlined)
+                              : Icons.access_time_filled_rounded)),
                   size: 16,
-                  color: isLocked
+                  color: isDisabled
                       ? Colors.grey.shade600
                       : (isSelected 
                           ? Colors.white70 
@@ -321,7 +378,7 @@ class _MainContent extends StatelessWidget {
                 Text(
                   'P$p',
                   style: TextStyle(
-                    color: isLocked
+                    color: isDisabled
                         ? Colors.grey.shade600
                         : (isSelected 
                             ? Colors.white 
@@ -333,6 +390,15 @@ class _MainContent extends StatelessWidget {
                 if (isLocked)
                   Text(
                     'Done',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  )
+                else if (isOverflow)
+                  Text(
+                    'Invalid',
                     style: TextStyle(
                       color: Colors.grey.shade600,
                       fontSize: 8,
@@ -373,11 +439,93 @@ class _MainContent extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              c.isLab ? 'Start Lab Session' : 'Proceed to Scan',
+              c.isLab 
+                  ? 'Start Lab Session' 
+                  : (c.selectedTheoryPeriodCount > 1 
+                      ? 'Start ${c.selectedTheoryPeriodCount}-Period Class'
+                      : 'Proceed to Scan'),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)
             ),
             const SizedBox(width: 10),
-            if (c.isLab) const Icon(Icons.science_outlined, size: 20),
+            if (c.isLab) 
+              const Icon(Icons.science_outlined, size: 20)
+            else if (c.selectedTheoryPeriodCount > 1)
+              const Icon(Icons.schedule_outlined, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// New widget for period count selection
+class _PeriodCountSelector extends StatelessWidget {
+  final int selected;
+  final ValueChanged<int> onSelect;
+  
+  const _PeriodCountSelector({
+    required this.selected,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildPeriodOption(1, '1 Period'),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildPeriodOption(2, '2 Periods (Consecutive)'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPeriodOption(int count, String label) {
+    final isSelected = selected == count;
+    
+    return GestureDetector(
+      onTap: () => onSelect(count),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blueAccent : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? Colors.blueAccent : Colors.grey.shade200,
+            width: 1.5,
+          ),
+          boxShadow: isSelected 
+            ? [BoxShadow(
+                color: Colors.blueAccent.withValues(alpha: 0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              )]
+            : [],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              count == 1 ? Icons.access_time_filled_rounded : Icons.schedule_outlined,
+              size: 18,
+              color: isSelected ? Colors.white : Colors.blueAccent,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : const Color(0xFF1A1C1E),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -457,7 +605,7 @@ Future<void> _handleProceed(BuildContext context, FacultySetupController c) asyn
       builder: (_) => LiveScannerScreen(
         facultyId: c.facultyId,
         periodNumber: c.selectedPeriodNumber,
-        periodCount: c.periodCount,
+        periodCount: c.effectivePeriodCount, // Use effective period count
         isLab: c.isLab,
         year: c.selectedYear!,
         branch: c.selectedBranch!,

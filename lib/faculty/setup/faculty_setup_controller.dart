@@ -1,3 +1,6 @@
+// added academic year filter to remove detained 
+// added theory period count dropdown for consecutive theory classes
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -26,6 +29,7 @@ class FacultySetupController extends ChangeNotifier {
   String? selectedSection;
   String? selectedSubjectDisplay;
   int selectedPeriodNumber = 1;
+  int selectedTheoryPeriodCount = 1; // For theory classes: 1 or 2 hours
 
   String subjectCode = '';
   String subjectName = '';
@@ -33,10 +37,23 @@ class FacultySetupController extends ChangeNotifier {
   bool isLab = false;
   
   final List<int> periods = [1,2,3,4,5,6,7];
+  final List<int> theoryPeriodOptions = [1, 2]; // Theory can be 1 or 2 hours
   List<String> enrolledStudentRollNos = [];
   
   // Track locked periods
   Set<int> lockedPeriods = {};
+
+  // Helper function to get current academic year
+  String _getAcademicYearFromDate(DateTime date) {
+    final year = date.year;
+    final month = date.month;
+    // Assumes academic year starts in June
+    if (month < 6) {
+      return '${year - 1}-$year';
+    } else {
+      return '$year-${year + 1}';
+    }
+  }
 
   Future<void> loadInitialData() async {
     if (facultyId.isEmpty) {
@@ -220,8 +237,17 @@ class FacultySetupController extends ChangeNotifier {
     periodCount = match['periodCount'] ?? 1;
     isLab = match['isLab'] ?? false;
     
+    // Reset theory period count when subject changes
+    selectedTheoryPeriodCount = 1;
+    
     _checkLockedPeriods();
     
+    notifyListeners();
+  }
+
+  void selectTheoryPeriodCount(int count) {
+    selectedTheoryPeriodCount = count;
+    _checkLockedPeriods();
     notifyListeners();
   }
 
@@ -268,6 +294,15 @@ class FacultySetupController extends ChangeNotifier {
       selectedSection != null &&
       selectedSubjectDisplay != null;
 
+  // Get the actual period count to use (for labs: from subject config, for theory: from dropdown)
+  int get effectivePeriodCount => isLab ? periodCount : selectedTheoryPeriodCount;
+
+  // Check if selecting this period would cause overflow
+  bool isPeriodOverflow(int startPeriod) {
+    final maxPeriod = periods.isNotEmpty ? periods.last : 7;
+    return startPeriod + effectivePeriodCount - 1 > maxPeriod;
+  }
+
   Future<void> loadEnrolledStudents() async {
     try {
       errorMessage = null;
@@ -284,6 +319,9 @@ class FacultySetupController extends ChangeNotifier {
           .where('section', isEqualTo: selectedSection)
           .get();
 
+      // Check for conflicts using the effective period count
+      final effectiveCount = effectivePeriodCount;
+      
       for (final doc in existingAttendance.docs) {
         final data = doc.data();
         final startPeriod = data['periodNumber'] as int? ?? 0;
@@ -292,18 +330,25 @@ class FacultySetupController extends ChangeNotifier {
         final existingSubject = data['subjectCode'] as String? ?? '';
         final existingFacultyId = data['facultyId'] as String? ?? '';
         
-        if (selectedPeriodNumber >= startPeriod && selectedPeriodNumber < endPeriod) {
-          if (existingFacultyId == facultyId) {
-            errorMessage = 'You have already taken attendance for Period $selectedPeriodNumber (Subject: $existingSubject)';
-          } else {
-            errorMessage = 'Period $selectedPeriodNumber already occupied by another faculty for $existingSubject';
+        // Check if any of our periods overlap with existing attendance
+        for (int i = 0; i < effectiveCount; i++) {
+          final ourPeriod = selectedPeriodNumber + i;
+          if (ourPeriod >= startPeriod && ourPeriod < endPeriod) {
+            if (existingFacultyId == facultyId) {
+              errorMessage = 'You have already taken attendance for Period $ourPeriod (Subject: $existingSubject)';
+            } else {
+              errorMessage = 'Period $ourPeriod already occupied by another faculty for $existingSubject';
+            }
+            notifyListeners();
+            return;
           }
-          notifyListeners();
-          return;
         }
       }
 
       final int year = int.parse(selectedYear!);
+      
+      // Get current academic year
+      final currentAcademicYear = _getAcademicYearFromDate(DateTime.now());
       
       final academicSnap = await _db
           .collection('academic_records')
@@ -311,6 +356,7 @@ class FacultySetupController extends ChangeNotifier {
           .where('branch', isEqualTo: selectedBranch)
           .where('section', isEqualTo: selectedSection)
           .where('status', isEqualTo: 'active')
+          .where('academicYear', isEqualTo: currentAcademicYear)
           .get();
 
       if (academicSnap.docs.isEmpty) {

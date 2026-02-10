@@ -128,10 +128,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false, // ✅ FIXED: Removed back button
         actions: [
           IconButton(
               icon: const Icon(Icons.file_download_outlined),
@@ -178,7 +175,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
               const SizedBox(width: 8),
               Expanded(
                 flex: 2,
-                child: _dropdownField(controller.years, controller.year, 'Yr', (v) => controller.updateFilter(yearValue: v)),
+                child: _dropdownField(controller.years, controller.year, 'Year', (v) => controller.updateFilter(yearValue: v)),
               ),
             ],
           ),
